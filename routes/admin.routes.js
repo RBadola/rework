@@ -5,31 +5,34 @@ import {
   Category,
   Product,
 } from "../models/base.admin.model.js";
-import { performance } from "perf_hooks";
+// import { performance } from "perf_hooks";
 import { logger } from "../helpers/logger.js";
 import { generateToken } from "../helpers/jwt.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import multer from "multer";
 import { fileURLToPath } from "url";
 import path from "path";
+import { uploadImageToCloudinary, uploadPDF } from "../helpers/cloud.js";
 const router = Router();
 const __fileName = import.meta.url;
 const __dirName = fileURLToPath(__fileName);
 logger.log({ level: "info", message: __dirName });
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => {
-    // const ext = path.extname(file.originalname);
-    cb(
-      null,
-      `images-${Date.now()}-${Math.round(Math.random() * 1e9)}${
-        file.originalname
-      }`
-    );
-  },
-});
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => cb(null, "uploads/"),
+//   filename: (req, file, cb) => {
+//     // const ext = path.extname(file.originalname);
+//     cb(
+//       null,
+//       `images-${Date.now()}-${Math.round(Math.random() * 1e9)}${
+//         file.originalname
+//       }`
+//     );
+//   },
+// });
 
-const upload = multer({ storage: storage, limits: { fileSize: 5000000 } });
+// const upload = multer({ storage: storage, limits: { fileSize: 5000000 } });
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 // admin account routes
 router.post("/create", async (req, res) => {
   try {
@@ -62,7 +65,7 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Incorrect Password" });
     }
     const token = await generateToken(user);
-    return res.status(200).json({ data, token: token });
+    return res.status(200).json({ data:user, token: token });
   } catch (err) {
     console.log(err.message);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -91,47 +94,65 @@ router.get("/me", verifyToken, async (req, res) => {
 
 //  admin product routes
 
-router.post("/products/", upload.array("images"), async (req, res) => {
-  try {
-    const uploadedImagePaths = req.files.map((file) =>
-      file.path.replace(/\\/g, "/")
-    ); // optional: normalize path for UNIX-style
 
-    const {
-      name,
-      category,
-      description,
-      price,
-      stockQuantity,
-      discount,
-      isActive,
-      isFeatured,
-      inStock,
-      variants,
-      isBestSeller,
-    } = req.body;
-    const parsedProduct = {
-      name,
-      category,
-      description,
-      price: Number(price),
-      stockQuantity: Number(stockQuantity),
-      discount: Number(discount),
-      isActive: isActive === "true",
-      isFeatured: isFeatured === "true",
-      inStock: inStock === "true",
-      isBestSeller: isBestSeller === "true",
-      images: uploadedImagePaths,
-      variants: JSON.parse(variants), // comes as a stringified array
-    };
-    const newProduct = new Product(parsedProduct);
-    const data = await newProduct.save();
-    return res.status(200).json({ message: "Product received", data });
-  } catch (err) {
-    console.error(err.message);
-    return res.status(400).json({ error: err.message });
+router.post(
+  "/products/",
+  upload.fields([
+    { name: "images" },
+    { name: "labReport" },
+  ]),
+  async (req, res) => {
+    try {
+      const { images = [], labReport = [] } = req.files;
+
+      // Upload all images to Cloudinary
+      const uploadedImages = await Promise.all(
+        images.map(file => uploadImageToCloudinary(file))
+      );
+console.log(labReport,req.files)
+      // Upload PDF
+      const labReportUrl = labReport.length > 0 ? await uploadPDF(labReport[0]) : null;
+
+      const {
+        name,
+        category,
+        description,
+        price,
+        stockQuantity,
+        discount,
+        isActive,
+        isFeatured,
+        inStock,
+        isBestSeller,
+        variants,
+      } = req.body;
+
+      const parsedProduct = {
+        name,
+        category,
+        description,
+        price: Number(price),
+        stockQuantity: Number(stockQuantity),
+        discount: Number(discount),
+        isActive: isActive === "true",
+        isFeatured: isFeatured === "true",
+        inStock: inStock === "true",
+        isBestSeller: isBestSeller === "true",
+        images: uploadedImages,
+        labReport: labReportUrl,
+        variants: JSON.parse(variants),
+      };
+
+      const newProduct = new Product(parsedProduct);
+      const data = await newProduct.save();
+
+      return res.status(200).json({ message: "Product created", data });
+    } catch (err) {
+      console.error(err);
+      return res.status(400).json({ error: err.message });
+    }
   }
-});
+);
 
 router.get("/products", async (req, res) => {
   logger.info("PRODUCT: Route entered");

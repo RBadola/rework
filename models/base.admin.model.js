@@ -69,6 +69,7 @@ const productSchema = new mongoose.Schema(
     discount: { type: Number, default: 0 }, // percentage
     finalPrice: { type: Number },
     images: [{ type: String }],
+    labReport:String,
     inStock: { type: Boolean, default: true },
     stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
