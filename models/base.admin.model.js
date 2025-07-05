@@ -188,7 +188,7 @@ const CustomerSchema = new Schema({
   phone: String,
   loyaltyPoints: Number,
   orders: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
-  cart: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+  cart: [{product:{ type: mongoose.Schema.Types.ObjectId, ref: "Product" },quantity:Number}],
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 

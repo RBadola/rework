@@ -3,6 +3,7 @@ import {
   Admin,
   BaseUser,
   Category,
+  Customer,
   Product,
 } from "../models/base.admin.model.js";
 // import { performance } from "perf_hooks";
@@ -160,7 +161,7 @@ router.get("/products", async (req, res) => {
     logger.info("PRODUCT: About to query database");
     const products = await Product.find();
     logger.info(`PRODUCT: Database query completed, found: ${products.length}`);
-    res.status(200).json({ data: products });
+    res.status(200).json({ data: products }); 
     logger.info("PRODUCT: Response sent");
   } catch (err) {
     logger.error("PRODUCT: Error occurred", err);
@@ -251,6 +252,23 @@ router.get("/categories", async (req, res) => {
     return res.status(500).json({ error: "Failed to Fetch Categories" });
   }
 });
+
+// admin customer routes
+// router.post("/coupon/create", async (req, res) => {});
+router.get("/customers", async (req, res) => {
+   try {
+    const customers = await Customer.find();
+    if (!customers) return res.status(404).json({ error: "customers not found" });
+    return res.status(200).json({ data: customers });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Invalid Request" });
+  }
+});
+// router.get("/coupon/:id", async (req, res) => {});
+// router.patch("/coupon/:id", async (req, res) => {});
+// router.delete("/coupon/:id", async (req, res) => {});
+
 
 // admin coupon routes
 // router.post("/coupon/create", async (req, res) => {});
