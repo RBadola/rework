@@ -65,18 +65,21 @@ const productSchema = new mongoose.Schema(
     slug: { type: String, unique: true, lowercase: true }, // URL-friendly name
     description: { type: String },
     category: { type: String, required: true },
-    price: { type: Number, required: true },
+    // price: { type: Number, required: true },
     discount: { type: Number, default: 0 }, // percentage
     finalPrice: { type: Number },
     images: [{ type: String }],
-    labReport:String,
+    labReport: String,
     inStock: { type: Boolean, default: true },
-    stockQuantity: { type: Number, default: 0 },
+    // stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
     variants: [
       {
-        variantName: String, // e.g., Color or Size
-        options: [{ value: String, stock: Number }], // e.g., Red, Blue or M, L, XL
+        variantName: String,
+        variantWeight: String,
+        variantStock: Number,
+        variantPrice: Number,
+        options: [{ title: String, price: Number }],
       },
     ],
     rating: { type: Number, default: 0 },
@@ -97,11 +100,6 @@ productSchema.set("toJSON", {
 });
 productSchema.pre("save", async function (next) {
   try {
-    if (this.isModified("price") || this.isModified("discount")) {
-     this.finalPrice = currency(this.price).subtract(
-        currency(this.price).multiply(this.discount / 100)
-      ).intValue;
-    }
     if (this.isModified("name")) {
       this.slug = slugify(this.name, { lower: true, strict: true, trim: true });
     }
@@ -188,7 +186,12 @@ const CustomerSchema = new Schema({
   phone: String,
   loyaltyPoints: Number,
   orders: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
-  cart: [{product:{ type: mongoose.Schema.Types.ObjectId, ref: "Product" },quantity:Number}],
+  cart: [
+    {
+      product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+      quantity: Number,
+    },
+  ],
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 

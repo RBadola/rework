@@ -47,7 +47,7 @@ router.post("/create", async (req, res) => {
       return res.status(400).json({ error: "Invalid role" });
     }
     const newUser = new Admin({ name, email, password, role });
-    const data = await newUser.save()
+    const data = await newUser.save();
     return res.status(201).json({ data });
   } catch (err) {
     console.log(err.message);
@@ -66,10 +66,12 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Incorrect Password" });
     }
     const token = await generateToken(user);
-    return res.status(200).json({ data:user, token: token });
+    return res.status(200).json({ data: user, token: token });
   } catch (err) {
     console.log(err.message);
-    return res.status(500).json({ error: "Internal Server Error",message:err.message });
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", message: err.message });
   }
 });
 
@@ -95,31 +97,28 @@ router.get("/me", verifyToken, async (req, res) => {
 
 //  admin product routes
 
-
 router.post(
   "/products/",
-  upload.fields([
-    { name: "images" },
-    { name: "labReport" },
-  ]),
+  upload.fields([{ name: "images" }, { name: "labReport" }]),
   async (req, res) => {
     try {
       const { images = [], labReport = [] } = req.files;
 
       // Upload all images to Cloudinary
       const uploadedImages = await Promise.all(
-        images.map(file => uploadImageToCloudinary(file))
+        images.map((file) => uploadImageToCloudinary(file))
       );
-console.log(labReport,req.files)
+      console.log(labReport, req.files);
       // Upload PDF
-      const labReportUrl = labReport.length > 0 ? await uploadPDF(labReport[0]) : null;
+      const labReportUrl =
+        labReport.length > 0 ? await uploadPDF(labReport[0]) : null;
 
       const {
         name,
         category,
         description,
-        price,
-        stockQuantity,
+        // price,
+        // stockQuantity,
         discount,
         isActive,
         isFeatured,
@@ -132,8 +131,8 @@ console.log(labReport,req.files)
         name,
         category,
         description,
-        price: Number(price),
-        stockQuantity: Number(stockQuantity),
+        // price: Number(price),
+        // stockQuantity: Number(stockQuantity),
         discount: Number(discount),
         isActive: isActive === "true",
         isFeatured: isFeatured === "true",
@@ -161,7 +160,7 @@ router.get("/products", async (req, res) => {
     logger.info("PRODUCT: About to query database");
     const products = await Product.find();
     logger.info(`PRODUCT: Database query completed, found: ${products.length}`);
-    res.status(200).json({ data: products }); 
+    res.status(200).json({ data: products });
     logger.info("PRODUCT: Response sent");
   } catch (err) {
     logger.error("PRODUCT: Error occurred", err);
@@ -256,9 +255,10 @@ router.get("/categories", async (req, res) => {
 // admin customer routes
 // router.post("/coupon/create", async (req, res) => {});
 router.get("/customers", async (req, res) => {
-   try {
+  try {
     const customers = await Customer.find();
-    if (!customers) return res.status(404).json({ error: "customers not found" });
+    if (!customers)
+      return res.status(404).json({ error: "customers not found" });
     return res.status(200).json({ data: customers });
   } catch (err) {
     console.error(err.message);
@@ -268,7 +268,6 @@ router.get("/customers", async (req, res) => {
 // router.get("/coupon/:id", async (req, res) => {});
 // router.patch("/coupon/:id", async (req, res) => {});
 // router.delete("/coupon/:id", async (req, res) => {});
-
 
 // admin coupon routes
 // router.post("/coupon/create", async (req, res) => {});
