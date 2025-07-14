@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { v2 as cloudinary } from "cloudinary";
 import {
   Admin,
   BaseUser,
   Category,
   Customer,
+  Order,
   Product,
 } from "../models/base.admin.model.js";
 // import { performance } from "perf_hooks";
@@ -17,6 +19,13 @@ import { uploadImageToCloudinary, uploadPDF } from "../helpers/cloud.js";
 const router = Router();
 const __fileName = import.meta.url;
 const __dirName = fileURLToPath(__fileName);
+cloudinary.config({
+  cloud_name: "djtvn83lp",
+  api_key: "389158573923714",
+  api_secret: "nK6E7F-dpSaezIPQohVZhknU7V8",
+  secure: true,
+});
+
 logger.log({ level: "info", message: __dirName });
 // const storage = multer.diskStorage({
 //   destination: (req, file, cb) => cb(null, "uploads/"),
@@ -96,7 +105,25 @@ router.get("/me", verifyToken, async (req, res) => {
 // router.delete("/:id", async (req, res) => {});
 
 //  admin product routes
-
+router.post("/confirmpass", verifyToken, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const user = await Admin.findOne({ _id: req.id });
+    if (!user) {
+      return res.status(400).json({ error: "User Not Found" });
+    }
+    const passMatch = await user.comparePassword(password);
+    if (!passMatch) {
+      return res.status(400).json({ error: "Incorrect Password" });
+    }
+    return res.status(200).json({ success: "true" });
+  } catch (err) {
+    console.log(err.message);
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", message: err.message });
+  }
+});
 router.post(
   "/products/",
   upload.fields([{ name: "images" }, { name: "labReport" }]),
@@ -117,22 +144,20 @@ router.post(
         name,
         category,
         description,
-        // price,
-        // stockQuantity,
         discount,
         isActive,
         isFeatured,
         inStock,
         isBestSeller,
         variants,
+        stocks,
       } = req.body;
 
       const parsedProduct = {
         name,
         category,
         description,
-        // price: Number(price),
-        // stockQuantity: Number(stockQuantity),
+        stocks: JSON.parse(stocks),
         discount: Number(discount),
         isActive: isActive === "true",
         isFeatured: isFeatured === "true",
@@ -178,49 +203,123 @@ router.get("/products/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid product ID" });
   }
 });
-router.patch("/products/:id", upload.none(), async (req, res) => {
-  try {
-    const id = req.params.id;
-    const {
-      name,
-      category,
-      description,
-      price,
-      stockQuantity,
-      discount,
-      isActive,
-      isFeatured,
-      inStock,
-      variants,
-      isBestSeller,
-      images,
-    } = req.body;
-    const parsedProduct = {
-      name,
-      category,
-      description,
-      price: Number(price),
-      stockQuantity: Number(stockQuantity),
-      discount: Number(discount),
-      isActive: isActive === "true",
-      isFeatured: isFeatured === "true",
-      inStock: inStock === "true",
-      isBestSeller: isBestSeller === "true",
-      images,
-      variants: JSON.parse(variants), // comes as a stringified array
-    };
-    console.log(req.body);
-    const updated = await Product.findByIdAndUpdate(id, parsedProduct, {
-      new: true,
-      runValidators: true,
-    });
-    if (!updated) return res.status(404).json({ error: "Product not found" });
-    return res.status(200).json({ data: updated });
-  } catch (err) {
-    console.error(err.message);
-    return res.status(400).json({ error: "Failed to update product" });
+
+router.patch(
+  "/products/:id",
+  upload.fields([{ name: "images" }, { name: "labReport" }]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const {
+        name,
+        category,
+        description,
+        discount,
+        isActive,
+        isFeatured,
+        inStock,
+        isBestSeller,
+        variants,
+        stocks,
+      } = req.body;
+
+      // existing files from frontend (string URLs)
+      const existingImages = Array.isArray(req.body.existingImages)
+        ? req.body.existingImages
+        : req.body.existingImages
+        ? [req.body.existingImages]
+        : [];
+
+      // const existingLabReports = Array.isArray(req.body.existingLabReports)
+      //   ? req.body.existingLabReports
+      //   : req.body.existingLabReports
+      //   ? [req.body.existingLabReports]
+      //   : [];
+
+      // upload new images
+      const uploadedImages = [];
+      if (req.files?.images) {
+        for (const file of req.files.images) {
+          const result = await cloudinary.uploader.upload_stream({
+            folder: `products/${id}`,
+            resource_type: "image",
+          });
+
+          await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              {
+                folder: `products/${id}/images`,
+                resource_type: "image",
+              },
+              (err, result) => {
+                if (err) return reject(err);
+                uploadedImages.push(result.secure_url);
+                resolve();
+              }
+            );
+            stream.end(file.buffer);
+          });
+        }
+      }
+
+      // upload new lab reports
+      // const uploadedLabReports = [];
+      // if (req.files?.labReports) {
+      //   for (const file of req.files.labReports) {
+      //     await new Promise((resolve, reject) => {
+      //       const stream = cloudinary.uploader.upload_stream(
+      //         {
+      //           folder: `products/${id}/labReports`,
+      //           resource_type: "raw",
+      //         },
+      //         (err, result) => {
+      //           if (err) return reject(err);
+      //           uploadedLabReports.push(result.secure_url);
+      //           resolve();
+      //         }
+      //       );
+      //       stream.end(file.buffer);
+      //     });
+      //   }
+      // }
+      const labReportUrl =
+        req.files?.labReport.length > 0
+          ? await uploadPDF(req.files?.labReport[0])
+          : null;
+      // Combine old and new
+      const finalImages = [...existingImages, ...uploadedImages];
+      // const finalLabReports = [...existingLabReports, ...uploadedLabReports];
+
+      const parsedProduct = {
+        name,
+        category,
+        description,
+        discount: Number(discount),
+        isActive: isActive === "true",
+        isFeatured: isFeatured === "true",
+        inStock: inStock === "true",
+        isBestSeller: isBestSeller === "true",
+        variants: JSON.parse(variants),
+        stocks: JSON.parse(stocks),
+        images: finalImages,
+        labReport: labReportUrl,
+      };
+
+      const updated = await Product.findByIdAndUpdate(id, parsedProduct, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updated) return res.status(404).json({ error: "Product not found" });
+
+      return res.status(200).json({ data: updated });
+    } catch (err) {
+      console.error("Product update failed:", err);
+      return res.status(400).json({ error: err.message });
+    }
   }
-});
+);
 router.delete("/products/:id", async (req, res) => {
   try {
     const deleted = await Product.findByIdAndDelete(req.params.id);
@@ -290,7 +389,16 @@ router.get("/customers", async (req, res) => {
 // router.delete("/users/:id", async (req, res) => {});
 
 // //  admin order management
-// router.get("/orders", async (req, res) => {});
+router.get("/orders", async (req, res) => {
+  try {
+    const orders = await Order.find();
+    if (!orders) return res.status(404).json({ error: "orders not found" });
+    return res.status(200).json({ data: orders });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(401).json({ error: "Internal Server Error" });
+  }
+});
 // router.get("/orders/:id", async (req, res) => {});
 // router.patch("/orders/:id", async (req, res) => {});
 // router.delete("/orders/:id", async (req, res) => {});

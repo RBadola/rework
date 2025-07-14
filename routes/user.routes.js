@@ -1,34 +1,70 @@
 import { Router } from "express";
 import { logger } from "../helpers/logger.js";
-import { Customer, Product } from "../models/base.admin.model.js";
+import { Customer, Order, Product } from "../models/base.admin.model.js";
 import { generateToken, verifyToken } from "../helpers/jwt.js";
+import mongoose from "mongoose";
 
 const router = Router();
-// user auth routes
-function calculateCouponDiscount(code, total) {
-  const coupon = "";
-  if (!coupon || coupon.expiresAt < new Date()) return 0;
 
-  if (coupon.minPurchase && total < coupon.minPurchase) return 0;
+async function decrementVariantStock(items, session) {
+  for (const item of items) {
+    const { productId, variantId, quantity } = item;
 
-  if (coupon.discountType === "flat") return coupon.value;
-  if (coupon.discountType === "percentage") return (coupon.value / 100) * total;
+    if (!productId || !variantId) {
+      throw new Error(
+        "Each order item must have both productId and variantId."
+      );
+    }
 
-  return 0;
+    const product = await Product.findOne({ _id: productId }, null, {
+      session,
+    });
+
+    if (!product) {
+      throw new Error(`Product with ID ${productId} not found.`);
+    }
+
+    const variant = product.variants.find(
+      (v) => v._id.toString() === variantId.toString()
+    );
+
+    if (!variant) {
+      throw new Error(
+        `Variant with ID ${variantId} not found in product ${productId}.`
+      );
+    }
+    const stockItem = product.stocks.find(
+      (p) => p.stockName === variant.variantWeight
+    );
+
+    if (!stockItem) {
+      throw new Error(`No stock entry for ${variant.variantWeight}`);
+    }
+
+    if (stockItem.stockQuantity < quantity) {
+      throw new Error(
+        `Insufficient stock for '${variant.variantName}'. Requested: ${quantity}, Available: ${stockItem.stockQuantity}`
+      );
+    }
+
+    // ✅ Decrement stock
+    stockItem.stockQuantity -= quantity;
+
+    // Save product with session
+    await product.save({ session });
+  }
 }
-
-
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone } = req.body;
     const user = await Customer.findOne({ email: email });
     if (user) {
       return res.status(400).json({ error: "User Already Exists" });
     }
-    const newUser = new Customer({ name, email, password });
+    const newUser = new Customer({ name, email, password, phone });
     const userObj = await newUser.save();
-    const token = await generateToken(newUser);
-    return res.status(201).json({ data: userObj, token });
+    // const token = await generateToken(newUser);
+    return res.status(201).json({ message: "pre registration successful" });
   } catch (err) {
     console.log(err.message);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -66,6 +102,18 @@ router.get("/me", verifyToken, async (req, res) => {
   }
 });
 // router.post("/logout",async(req,res)=>{})
+router.get("/cart", verifyToken, async (req, res) => {
+  try {
+    const user = await Customer.findOne({ _id: req.id });
+    if (!user) {
+      return res.status(400).json({ error: "User Not Found" });
+    }
+    return res.status(200).json({ data: user?.cart });
+  } catch (err) {
+    console.log(err.message);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 router.patch("/update/cart", async (req, res) => {
   const { id, cart: newItems } = req.body;
 
@@ -137,47 +185,149 @@ router.patch("/update/address", async (req, res) => {
   }
 });
 
-router.post("/cart",  async (req, res) => { 
-  
-  let productIds = []
-  if(req.body.id){
-    const user = await Customer.findById(req.body.id);
-  }
-    productIds = req.body.cart.map((item) => item.product);
+router.post("/cart", async (req, res) => {
+  try {
+    const cart = req.body.cart; // [{ product, variantId, quantity }]
+    if (!Array.isArray(cart) || cart.length === 0) {
+      return res.status(400).json({ error: "Cart is empty or invalid" });
+    }
 
-  const products = await Product.find({ _id: { $in: productIds } });
+    const productIds = cart.map((item) => item.product);
 
-  let total = 0;
-  let cartDetails = [];
+    // Fetch all products in one go
+    const products = await Product.find({ _id: { $in: productIds } });
 
-  for (let cartItem of req.body.cart) {
-    const product = products.find((p) => p.id ==cartItem.product);
-    const subtotal = product.finalPrice * cartItem.quantity;
-    total += subtotal;
+    let total = 0;
+    const cartDetails = [];
 
-    cartDetails.push({
-      product,
-      quantity: cartItem.quantity,
-      subtotal,
+    for (let cartItem of cart) {
+      const product = products.find((p) => p.id == cartItem.product);
+      if (!product) continue;
+
+      const variant = product.variants.find(
+        (v) => v._id.toString() === cartItem.variantId
+      );
+      if (!variant) continue;
+
+      // Calculate price after discount
+      const discountAmount =
+        variant.variantPrice * (variant.variantDiscount / 100);
+      const finalPrice = variant.variantPrice - discountAmount;
+
+      const subtotal = finalPrice * cartItem.quantity;
+      total += subtotal;
+
+      cartDetails.push({
+        product: {
+          id: product._id,
+          name: product.name,
+          image: product.images[0],
+          variant: {
+            id: variant._id,
+            name: variant.variantName,
+            weight: variant.variantWeight,
+            price: variant.variantPrice,
+            discount: variant.variantDiscount,
+            finalPrice,
+          },
+        },
+        quantity: cartItem.quantity,
+        subtotal,
+      });
+    }
+
+    res.json({
+      items: cartDetails,
+      total,
+      finalTotal: total, // optionally add coupon handling here
     });
+  } catch (err) {
+    console.error("Cart Error:", err.message);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
-
-  // Optional: apply coupon
-  // const discount = calculateCouponDiscount(req.query.couponCode, total);
-
-  res.json({
-    items: cartDetails,
-    total,
-    // discount,
-    finalTotal: total ,
-  });
 });
 
 // router.post("/update-password",async(req,res)=>{})
 
 // // user order routes
-// router.post("/orders/",async(req,res)=>{}) //c
-// router.get("/orders/",async(req,res)=>{}) //r
+router.post("/orders/", async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      userId,
+      items,
+      shippingAddress,
+      totalAmount,
+      discountAmount,
+      finalAmount,
+      couponCode,
+      paymentMethod,
+      paymentDetails,
+    } = req.body;
+    await decrementVariantStock(items, session);
+
+    const user = await Customer.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    // ✅ 1. Create Order
+    const order = await Order(
+      {
+        userId,
+        items,
+        shippingAddress,
+        totalAmount,
+        discountAmount,
+        couponCode,
+        finalAmount,
+        paymentMethod,
+        paymentDetails,
+        paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+        orderStatus: "placed",
+      }
+    );
+   await order.save({ session });
+    // ✅ 2. Clear User's Cart
+
+    user.cart = [];
+    user.orders.push(order.id);
+    await user.save({ validateBeforeSave: true });
+
+    // ✅ 3. Commit Transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(201).json({
+      message: "Order placed successfully",
+      order: order[0],
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Order creation failed:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to place order", details: error.message });
+  }
+});
+router.get("/orders/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const orders = await Order.find({ userId: id });
+    if (!orders) return res.status(404).json({ error: "orders not found" });
+    return res.status(200).json({ data: orders });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Order creation failed:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to place order", details: error.message });
+  }
+});
 // router.get("/orders/:id",async(req,res)=>{}) //r
 // router.delete("/orders/:id",async(req,res)=>{}) //d
 

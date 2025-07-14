@@ -1,10 +1,13 @@
 import mongoose from "mongoose";
 const { Schema, model, models } = mongoose;
+import { DateTime } from "luxon";
+
+// Get current time in IST
+const istNow = DateTime.now().setZone("Asia/Kolkata");
 
 // import { logger } from "../helpers/logger.js";
 import bcrypt from "bcrypt";
 import slugify from "slugify";
-import currency from "currency.js";
 const BaseUserSchema = new Schema(
   {
     email: {
@@ -19,6 +22,15 @@ const BaseUserSchema = new Schema(
     password: {
       type: String,
       required: true,
+    },
+    status: {
+      type: String,
+      enum: ["active", "inactive", "blocked"],
+      default: "active",
+    },
+    firstLogin: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
@@ -73,13 +85,18 @@ const productSchema = new mongoose.Schema(
     inStock: { type: Boolean, default: true },
     // stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
+    stocks: [
+      {
+        stockName: String,
+        stockQuantity: Number,
+      },
+    ],
     variants: [
       {
         variantName: String,
         variantWeight: String,
-        variantStock: Number,
         variantPrice: Number,
-        options: [{ title: String, price: Number }],
+        variantDiscount: Number,
       },
     ],
     rating: { type: Number, default: 0 },
@@ -188,10 +205,16 @@ const CustomerSchema = new Schema({
   orders: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
   cart: [
     {
-      product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
-      quantity: Number,
+      product: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+        required: true,
+      },
+      variantId: { type: String, required: true },
+      quantity: { type: Number, default: 1 },
     },
   ],
+
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 
@@ -204,15 +227,10 @@ const orderItemSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
-    name: String,
-    quantity: { type: Number, required: true },
-    price: { type: Number, required: true },
-    finalPrice: Number,
-    image: String,
-    variant: {
-      type: Map,
-      of: String,
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
     },
+    quantity: { type: Number, required: true },
   },
   { _id: false }
 );
@@ -274,6 +292,10 @@ const orderSchema = new mongoose.Schema(
     deliveredAt: Date,
     cancelledAt: Date,
     returnWindow: Number, // days allowed for return
+    orderId: {
+      type: String,
+      unique: true,
+    },
   },
   { timestamps: true }
 );
@@ -285,6 +307,19 @@ orderSchema.set("toJSON", {
     delete ret.__v;
     return ret;
   },
+});
+orderSchema.pre("save", async function (next) {
+  try {
+    const istNow = DateTime.now().setZone("Asia/Kolkata");
+    const datePart = istNow.toFormat("HHmmyyyyLLdd");
+  
+    this.orderId = `ORD-${Math.random() * 9000}-${datePart}`;
+    next();
+  } catch (err) {
+    console.error("Error", err.message);
+    console.log(err.message);
+    next(err);
+  }
 });
 export const Order = models?.Order || model("Order", orderSchema);
 

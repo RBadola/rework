@@ -10,8 +10,8 @@ import { connectToDb } from "./helpers/db.js";
 import { logger } from "./helpers/logger.js";
 config()
 const app = express()
-// const allowedOrigins = ['http://192.168.29.132:5173','http://localhost:5173',"http://localhost:4173","http://192.168.29.132:4173","https://gentle-truffle-2eb12a.netlify.app","https://refreshingroots.com"];
-const allowedOrigins = ["https://www.refreshingroots.com","https://refreshingroots.com"];
+const allowedOrigins = ["https://www.refreshingroots.com","https://refreshingroots.com","https://gentle-truffle-2eb12a.netlify.app"];
+// const allowedOrigins = ["http://192.168.1.13:5173",'http://192.168.29.132:5173','http://localhost:5173','http://192.168.29.132:5174','http://localhost:5174',"http://localhost:4173","http://192.168.29.132:4173"];
 
 app.use(cors({
   origin: (origin, callback) => {

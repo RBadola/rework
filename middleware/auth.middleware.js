@@ -5,56 +5,19 @@ import { logger } from "../helpers/logger.js";
 dotenv.config()
 
 export const verifyToken = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
+  const token = req.headers.authorization?.split(" ")[1];
+  // const token = req.cookies.token;
 
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Access denied. No token provided.",
-      });
-    }
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "Access denied. No token provided.",
+    });
+  }
+  try {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Find user based on type
-    // let user;
-    // switch (decoded.userType) {
-    //   case "SuperAdmin":
-    //     user = await SuperAdmin.findById(decoded.id).select("-password");
-    //     break;
-    //   case "ProductAdmin":
-    //     user = await ProductAdmin.findById(decoded.id).select("-password");
-    //     break;
-    //   case "SupportAdmin":
-    //     user = await SupportAdmin.findById(decoded.id).select("-password");
-    //     break;
-    //   default:
-    //     return res.status(401).json({
-    //       success: false,
-    //       message: "Invalid user type",
-    //     });
-    // }
-    // if (!user) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: "User not found",
-    //   });
-    // }
-
-    // if (!user.isApproved) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Account pending approval",
-    //   });
-    // }
-
-    // if (user.status !== "active") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Account is not active",
-    //   });
-    // }
 
     // req.user = user;
     req.id = decoded.id; // optional, if you still want the id separately
