@@ -217,7 +217,7 @@ router.patch(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { images = [], labReport = "" } = req.files;
+      const { images = [], labReport = [] } = req.files;
       const {
         name,
         category,
@@ -239,7 +239,7 @@ router.patch(
       // upload new images
       const uploadedImages = [];
 
-      for (const file of req.files.images) {
+      for (const file of images) {
         const imageUrl = await uploadImageToCloudinary(
           file.buffer,
           `products/${id}/images`
@@ -248,8 +248,8 @@ router.patch(
       }
 
       let labReportURl = null;
-      if (req.files?.labReport?.[0]) {
-        labReportURl = await uploadPDF(req.files.labReport[0]);
+      if (labReport?.[0]) {
+        labReportURl = await uploadPDF(labReport[0]);
       }
       const finalImages = [...existingImages, ...uploadedImages];
 
