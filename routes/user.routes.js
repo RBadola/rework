@@ -124,21 +124,21 @@ router.patch("/update/cart", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const existingItems = user.cart || [];
+    // const existingItems = user.cart || [];
 
-    // Merge only new items (by product ID)
-    const mergedCart = [...existingItems];
+    // // Merge only new items (by product ID)
+    // const mergedCart = [...existingItems];
 
-    newItems.forEach((newItem) => {
-      const alreadyExists = existingItems.some(
-        (item) => item.product.toString() === newItem.product.toString()
-      );
-      if (!alreadyExists) {
-        mergedCart.push(newItem);
-      }
-    });
+    // newItems.items.forEach((newItem) => {
+    //   const alreadyExists = existingItems.some(
+    //     (item) => item.product.toString() === newItem.product.toString()
+    //   );
+    //   if (!alreadyExists) {
+    //     mergedCart.push(newItem);
+    //   }
+    // });
 
-    user.cart = mergedCart;
+    user.cart = newItems.items;
 
     const updated = await user.save({ validateBeforeSave: true });
 

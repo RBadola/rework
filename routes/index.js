@@ -3,7 +3,7 @@ import AdminRoutes from "./admin.routes.js"
 import UserRouter from "./user.routes.js"
 import { Product } from "../models/base.admin.model.js"
 import { logger } from "../helpers/logger.js"
-
+import DeliveryRoutes from "./delhivery.routes.js"
 const router = Router()
 
 router.use("/admin",AdminRoutes)
@@ -30,4 +30,6 @@ router.get("/products/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid product ID" });
   }
 });
+
+router.use("/delivery",DeliveryRoutes)
 export default router

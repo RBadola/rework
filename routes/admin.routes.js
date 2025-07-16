@@ -135,7 +135,7 @@ router.post(
       const uploadedImages = await Promise.all(
         images.map((file) => uploadImageToCloudinary(file))
       );
-      console.log(labReport, req.files);
+      // console.log(images);
       // Upload PDF
       const labReportUrl =
         labReport.length > 0 ? await uploadPDF(labReport[0]) : null;
@@ -206,11 +206,11 @@ router.get("/products/:id", async (req, res) => {
 
 router.patch(
   "/products/:id",
-  upload.fields([{ name: "images" }, { name: "labReport" }]),
+  upload.fields([{ name: "images" }, { name: "labReport", maxCount:1}]),
   async (req, res) => {
     try {
       const { id } = req.params;
-
+      const { images = [], labReport = "" } = req.files;
       const {
         name,
         category,
@@ -223,74 +223,24 @@ router.patch(
         variants,
         stocks,
       } = req.body;
-
-      // existing files from frontend (string URLs)
       const existingImages = Array.isArray(req.body.existingImages)
         ? req.body.existingImages
         : req.body.existingImages
         ? [req.body.existingImages]
         : [];
 
-      // const existingLabReports = Array.isArray(req.body.existingLabReports)
-      //   ? req.body.existingLabReports
-      //   : req.body.existingLabReports
-      //   ? [req.body.existingLabReports]
-      //   : [];
-
       // upload new images
-      const uploadedImages = [];
-      if (req.files?.images) {
-        for (const file of req.files.images) {
-          const result = await cloudinary.uploader.upload_stream({
-            folder: `products/${id}`,
-            resource_type: "image",
-          });
+      const uploadedImages = await Promise.all(
+        images?.map((file) => uploadImageToCloudinary(file))
+      );
 
-          await new Promise((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-              {
-                folder: `products/${id}/images`,
-                resource_type: "image",
-              },
-              (err, result) => {
-                if (err) return reject(err);
-                uploadedImages.push(result.secure_url);
-                resolve();
-              }
-            );
-            stream.end(file.buffer);
-          });
-        }
+     
+      let labReportURl = null
+      if (req.files?.labReport?.[0]) {
+        labReportURl = await uploadPDF(req.files.labReport[0]);
       }
-
-      // upload new lab reports
-      // const uploadedLabReports = [];
-      // if (req.files?.labReports) {
-      //   for (const file of req.files.labReports) {
-      //     await new Promise((resolve, reject) => {
-      //       const stream = cloudinary.uploader.upload_stream(
-      //         {
-      //           folder: `products/${id}/labReports`,
-      //           resource_type: "raw",
-      //         },
-      //         (err, result) => {
-      //           if (err) return reject(err);
-      //           uploadedLabReports.push(result.secure_url);
-      //           resolve();
-      //         }
-      //       );
-      //       stream.end(file.buffer);
-      //     });
-      //   }
-      // }
-      const labReportUrl =
-        req.files?.labReport.length > 0
-          ? await uploadPDF(req.files?.labReport[0])
-          : null;
-      // Combine old and new
       const finalImages = [...existingImages, ...uploadedImages];
-      // const finalLabReports = [...existingLabReports, ...uploadedLabReports];
-
+    
       const parsedProduct = {
         name,
         category,
@@ -303,7 +253,7 @@ router.patch(
         variants: JSON.parse(variants),
         stocks: JSON.parse(stocks),
         images: finalImages,
-        labReport: labReportUrl,
+        labReport: labReportURl,
       };
 
       const updated = await Product.findByIdAndUpdate(id, parsedProduct, {

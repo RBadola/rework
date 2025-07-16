@@ -104,6 +104,15 @@ const productSchema = new mongoose.Schema(
     isFeatured: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isBestSeller: { type: Boolean, default: false },
+    // deliveryDetails:{
+    //    weight:{type: Number, default: 0,required:true},
+    //    dimensions:{
+    //     width:{type: Number, default: 0,required:true},
+    //     height:{type: Number, default: 0,required:true},
+    //     length:{type: Number, default: 0,required:true}
+    //    },
+    //    fragile:{type: Boolean, default: false,required:true}
+    // }
   },
   { timestamps: true }
 );
