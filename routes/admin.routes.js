@@ -132,9 +132,16 @@ router.post(
       const { images = [], labReport = [] } = req.files;
 
       // Upload all images to Cloudinary
-      const uploadedImages = await Promise.all(
-        images.map((file) => uploadImageToCloudinary(file))
-      );
+      const uploadedImages = [];
+
+      for (const file of req.files.images) {
+        const imageUrl = await uploadImageToCloudinary(
+          file.buffer,
+          `products/${id}/images`
+        );
+        uploadedImages.push(imageUrl);
+      }
+
       // console.log(images);
       // Upload PDF
       const labReportUrl =
@@ -206,7 +213,7 @@ router.get("/products/:id", async (req, res) => {
 
 router.patch(
   "/products/:id",
-  upload.fields([{ name: "images" }, { name: "labReport", maxCount:1}]),
+  upload.fields([{ name: "images" }, { name: "labReport", maxCount: 1 }]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -230,17 +237,22 @@ router.patch(
         : [];
 
       // upload new images
-      const uploadedImages = await Promise.all(
-        images?.map((file) => uploadImageToCloudinary(file))
-      );
+      const uploadedImages = [];
 
-     
-      let labReportURl = null
+      for (const file of req.files.images) {
+        const imageUrl = await uploadImageToCloudinary(
+          file.buffer,
+          `products/${id}/images`
+        );
+        uploadedImages.push(imageUrl);
+      }
+
+      let labReportURl = null;
       if (req.files?.labReport?.[0]) {
         labReportURl = await uploadPDF(req.files.labReport[0]);
       }
       const finalImages = [...existingImages, ...uploadedImages];
-    
+
       const parsedProduct = {
         name,
         category,

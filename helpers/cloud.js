@@ -33,15 +33,21 @@ export const uploadPDF = async (localFilePath) => {
     throw error;
   }
 };
-export const uploadImageToCloudinary = async (file) => {
+export const uploadImageToCloudinary = async (buffer, folder) => {
+  if (!buffer) throw new Error("No image buffer provided");
+
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: 'products' },
-      (error, result) => {
-        if (result) resolve(result.secure_url);
-        else reject(error);
+      {
+        folder,
+        resource_type: "image",
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result.secure_url);
       }
     );
-    stream.end(file.buffer);
+    stream.end(buffer);
   });
 };
+
