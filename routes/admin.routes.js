@@ -157,9 +157,10 @@ router.post(
         inStock,
         isBestSeller,
         variants,
-        stocks,comboProduct
+        stocks,
+        comboProduct,
       } = req.body;
-       const parsedProduct = {
+      const parsedProduct = {
         name,
         category,
         description,
@@ -171,16 +172,14 @@ router.post(
         isBestSeller: isBestSeller === "true",
         images: uploadedImages,
         labReport: labReportUrl,
-       
       };
-      if(comboProduct){
-        parsedProduct["comboProduct"]=JSON.parse(comboProduct)
-        parsedProduct["variants"]=null
-      }else{
-        parsedProduct["comboProduct"]=null
-        parsedProduct["variants"]=JSON.parse(variants)
+      if (comboProduct) {
+        parsedProduct["comboProduct"] = JSON.parse(comboProduct);
+        parsedProduct["variants"] = null;
+      } else {
+        parsedProduct["comboProduct"] = null;
+        parsedProduct["variants"] = JSON.parse(variants);
       }
-     
 
       const newProduct = new Product(parsedProduct);
       const data = await newProduct.save();
@@ -236,6 +235,7 @@ router.patch(
         isBestSeller,
         variants,
         stocks,
+        comboProduct,
       } = req.body;
       const existingImages = Array.isArray(req.body.existingImages)
         ? req.body.existingImages
@@ -269,12 +269,17 @@ router.patch(
         isFeatured: isFeatured === "true",
         inStock: inStock === "true",
         isBestSeller: isBestSeller === "true",
-        variants: JSON.parse(variants),
         stocks: JSON.parse(stocks),
         images: finalImages,
         labReport: labReportURl,
       };
-
+      if (comboProduct) {
+        parsedProduct["comboProduct"] = JSON.parse(comboProduct);
+        parsedProduct["variants"] = null;
+      } else {
+        parsedProduct["comboProduct"] = null;
+        parsedProduct["variants"] = JSON.parse(variants);
+      }
       const updated = await Product.findByIdAndUpdate(id, parsedProduct, {
         new: true,
         runValidators: true,

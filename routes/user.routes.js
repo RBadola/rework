@@ -204,40 +204,63 @@ router.post("/cart", async (req, res) => {
     for (let cartItem of cart) {
       const product = products.find((p) => p.id == cartItem.product);
       if (!product) continue;
+      if (product.variants) {
+        const variant = product.variants.find(
+          (v) => v._id.toString() === cartItem.variantId
+        );
+        if (!variant) continue;
 
-      const variant = product.variants.find(
-        (v) => v._id.toString() === cartItem.variantId
-      );
-      if (!variant) continue;
+        // Calculate price after discount
+        const discountAmount =
+          variant.variantPrice * (variant.variantDiscount / 100);
+        const finalPrice =
+          Math.floor(variant.variantPrice - discountAmount) + 0.99;
 
-      // Calculate price after discount
-      const discountAmount =
-        variant.variantPrice * (variant.variantDiscount / 100);
-      const finalPrice =
-        Math.floor(variant.variantPrice - discountAmount) + 0.99;
+        const subtotal = finalPrice * cartItem.quantity;
+        total += subtotal;
 
-      const subtotal = finalPrice * cartItem.quantity;
-      total += subtotal;
-
-      cartDetails.push({
-        product: {
-          id: product._id,
-          name: product.name,
-          image: product.images[0],
-          variant: {
-            id: variant._id,
-            name: variant.variantName,
-            weight: variant.variantWeight,
-            price: variant.variantPrice,
-            discount: variant.variantDiscount,
-            finalPrice,
+        cartDetails.push({
+          product: {
+            id: product._id,
+            name: product.name,
+            image: product.images[0],
+            variant: {
+              id: variant._id,
+              name: variant.variantName,
+              weight: variant.variantWeight,
+              price: variant.variantPrice,
+              discount: variant.variantDiscount,
+              finalPrice,
+            },
           },
-        },
-        quantity: cartItem.quantity,
-        subtotal,
-      });
-    }
+          quantity: cartItem.quantity,
+          subtotal,
+          category: product.category,
+        });
+      } else {
+        const discountAmount =
+          product.comboProduct.comboPrice * (product.discount / 100);
+        const finalPrice =
+          Math.floor(product.comboProduct.comboPrice - discountAmount) + 0.99;
 
+        const subtotal = finalPrice * cartItem.quantity;
+        total += subtotal;
+
+        cartDetails.push({
+          product: {
+            id: product._id,
+            name: product.name,
+            image: product.images[0],
+            comboPrice: product.comboProduct.comboPrice,
+            discount: product.discount,
+            finalPrice 
+          },
+          quantity: cartItem.quantity,
+          subtotal,
+          category: product.category,
+        });
+      }
+    }
     res.json({
       items: cartDetails,
       total,
@@ -287,27 +310,27 @@ router.post("/orders", async (req, res) => {
       paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
       orderStatus: "placed",
     });
-     // 🟡 Call external API after transaction
+    // 🟡 Call external API after transaction
     const shipment = {
-      "name": user.name,
-      "add": `${shippingAddress?.addressLine1} ${shippingAddress?.addressLine2} ${shippingAddress?.landmark}`,
-      "pin": shippingAddress?.pincode,
-      "city": shippingAddress?.city,
-      "state": shippingAddress?.state,
-      "country": "IN",
-      "phone": user?.phone || "0000000000",
-      "order": `Order-${order._id}`,
-      "payment_mode": paymentMethod === "COD" ? "COD" : "Prepaid",
-      "products_desc": "Mixed items",
-      "total_amount": finalAmount,
-      "shipment_width": "10",
-      "shipment_height": "10",
-      "shipment_length": "10",
-      "weight": "500",
-      "shipping_mode": "Surface",
-      "address_type": "Home",
+      name: user.name,
+      add: `${shippingAddress?.addressLine1} ${shippingAddress?.addressLine2} ${shippingAddress?.landmark}`,
+      pin: shippingAddress?.pincode,
+      city: shippingAddress?.city,
+      state: shippingAddress?.state,
+      country: "IN",
+      phone: user?.phone || "0000000000",
+      order: `Order-${order._id}`,
+      payment_mode: paymentMethod === "COD" ? "COD" : "Prepaid",
+      products_desc: "Mixed items",
+      total_amount: finalAmount,
+      shipment_width: "10",
+      shipment_height: "10",
+      shipment_length: "10",
+      weight: "500",
+      shipping_mode: "Surface",
+      address_type: "Home",
     };
-    
+
     const deliveryResult = await createDelhiveryOrder(shipment);
     if (!deliveryResult.success) {
       throw new Error("Delhivery API failed to create shipment");
@@ -319,8 +342,6 @@ router.post("/orders", async (req, res) => {
 
     await session.commitTransaction();
     session.endSession();
-
-   
 
     return res.status(201).json({
       message: "Order placed successfully",
