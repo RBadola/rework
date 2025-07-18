@@ -46,17 +46,11 @@ export async function getServiceability(deliveryPincode) {
         headers,
       }
     );
-
     const deliveryCodes = response.data?.delivery_codes;
-
-    // If response is empty or malformed, return false
     if (!deliveryCodes || deliveryCodes.length === 0) {
       return false;
     }
-
     const remarks = deliveryCodes[0]?.postal_code?.remarks;
-
-    // ✅ Only serviceable if remarks is exactly "" (empty string or undefined)
     if (!remarks || remarks.trim() === "") {
       return await getTat(deliveryPincode);
     }
@@ -71,34 +65,56 @@ export async function getServiceability(deliveryPincode) {
 
 export async function getDeliveryCost(deliveryPincode) {
   try {
-    console.log(deliveryPincode);
+    // console.log(deliveryPincode);
     const response = await axios.get(
-      `https://track.delhivery.com/api/kinko/v1/invoice/charges/.json?md=S&ss=Delivered&d_pin=${deliveryPincode}&o_pin=110042&cgm=10&pt=Pre-paid`,
+      `https://track.delhivery.com/api/kinko/v1/invoice/charges/.json?md=S&ss=Delivered&d_pin=${deliveryPincode}&o_pin=110042&cgm=500&pt=Pre-paid`,
       {
         headers,
       }
     );
-
-    const deliveryCodes = response.data?.delivery_codes;
-
-    
-    // If response is empty or malformed, return false
-    if (!deliveryCodes || deliveryCodes.length === 0) {
-      return false;
-    }
-
-    const remarks = deliveryCodes[0]?.postal_code?.remarks;
-
-    // ✅ Only serviceable if remarks is exactly "" (empty string or undefined)
-    if (!remarks || remarks.trim() === "") {
-      return await getTat(deliveryPincode);
-    }
+    console.log("cost", response.data.total_amount);
+    return response.data;
   } catch (error) {
     console.error(
-      "Error fetching Servicability",
+      "Error Fetching Delivery Cost",
       error?.response?.data || error.message
     );
     throw error;
   }
 }
 
+export async function createDelhiveryOrder(shipments = []) {
+  const payload = {
+    format: "json",
+    data: {
+      "shipments": [JSON.stringify(shipments)],
+      "pickup_location": { "name": "Test" },
+    }
+  };
+  const headers = {
+  'Content-Type': 'application/x-www-form-urlencoded',
+  'Authorization':`Token ${DELHIVERY_API_TOKEN}`
+};
+  try {
+    const response = await axios.post(
+      "https://track.delhivery.com/api/cmu/create.json",
+      JSON.stringify(payload),
+      { headers }
+    );
+    if (
+      !response.success ||
+      response.packages.some((pkg) => pkg.status !== "Success")
+    ) {
+      console.log(response.data);
+      throw new Error("Falied to create shipment");
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Delhivery order creation failed:",
+      error?.response?.data || error.message
+    );
+    throw error;
+  }
+}

@@ -142,12 +142,6 @@ export const Product = models?.Product || model("Product", productSchema);
 
 const address = new mongoose.Schema(
   {
-    name: { type: String, required: true }, // Recipient's name
-    phone: {
-      type: String,
-      required: true,
-      //   match: /^[6-9]\d{9}$/, // Indian mobile number
-    },
     addressLine1: { type: String, required: true },
     addressLine2: { type: String }, // Optional
     landmark: { type: String }, // Optional

@@ -10,7 +10,7 @@ import { connectToDb } from "./helpers/db.js";
 import { logger } from "./helpers/logger.js";
 config()
 const app = express()
-const allowedOrigins = ["https://www.refreshingroots.com","https://refreshingroots.com","https://gentle-truffle-2eb12a.netlify.app"];
+const allowedOrigins = ["https://www.refreshingroots.com","https://refreshingroots.com","https://gentle-truffle-2eb12a.netlify.app","https://hilarious-cheesecake-3cd779.netlify.app"];
 // const allowedOrigins = ["http://192.168.1.13:5173",'http://192.168.29.132:5173','http://localhost:5173','http://192.168.29.132:5174','http://localhost:5174',"http://localhost:4173","http://192.168.29.132:4173"];
 
 app.use(cors({
@@ -18,9 +18,9 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    callback(new Error('Not allowed by CORS'));
+    callback(new Error('Not Allowed By CORS'));
   },
-  credentials: true, // if you're sending cookies
+  credentials: true,
 }));
 app.use(helmet())
 app.use(morgan("dev"))

@@ -3,6 +3,7 @@ import { logger } from "../helpers/logger.js";
 import { Customer, Order, Product } from "../models/base.admin.model.js";
 import { generateToken, verifyToken } from "../helpers/jwt.js";
 import mongoose from "mongoose";
+import { createDelhiveryOrder } from "../services/delhivery.js";
 
 const router = Router();
 
@@ -212,7 +213,8 @@ router.post("/cart", async (req, res) => {
       // Calculate price after discount
       const discountAmount =
         variant.variantPrice * (variant.variantDiscount / 100);
-      const finalPrice = variant.variantPrice - discountAmount;
+      const finalPrice =
+        Math.floor(variant.variantPrice - discountAmount) + 0.99;
 
       const subtotal = finalPrice * cartItem.quantity;
       total += subtotal;
@@ -250,7 +252,7 @@ router.post("/cart", async (req, res) => {
 // router.post("/update-password",async(req,res)=>{})
 
 // // user order routes
-router.post("/orders/", async (req, res) => {
+router.post("/orders", async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -266,53 +268,73 @@ router.post("/orders/", async (req, res) => {
       paymentMethod,
       paymentDetails,
     } = req.body;
+
+    const user = await Customer.findById(userId).session(session);
+    if (!user) throw new Error("User not found");
+
     await decrementVariantStock(items, session);
 
-    const user = await Customer.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    const order = new Order({
+      userId,
+      items,
+      shippingAddress,
+      totalAmount,
+      discountAmount,
+      couponCode,
+      finalAmount,
+      paymentMethod,
+      paymentDetails,
+      paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+      orderStatus: "placed",
+    });
+     // 🟡 Call external API after transaction
+    const shipment = {
+      "name": user.name,
+      "add": `${shippingAddress?.addressLine1} ${shippingAddress?.addressLine2} ${shippingAddress?.landmark}`,
+      "pin": shippingAddress?.pincode,
+      "city": shippingAddress?.city,
+      "state": shippingAddress?.state,
+      "country": "IN",
+      "phone": user?.phone || "0000000000",
+      "order": `Order-${order._id}`,
+      "payment_mode": paymentMethod === "COD" ? "COD" : "Prepaid",
+      "products_desc": "Mixed items",
+      "total_amount": finalAmount,
+      "shipment_width": "10",
+      "shipment_height": "10",
+      "shipment_length": "10",
+      "weight": "500",
+      "shipping_mode": "Surface",
+      "address_type": "Home",
+    };
+    
+    const deliveryResult = await createDelhiveryOrder(shipment);
+    if (!deliveryResult.success) {
+      throw new Error("Delhivery API failed to create shipment");
     }
-    // ✅ 1. Create Order
-    const order = await Order(
-      {
-        userId,
-        items,
-        shippingAddress,
-        totalAmount,
-        discountAmount,
-        couponCode,
-        finalAmount,
-        paymentMethod,
-        paymentDetails,
-        paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
-        orderStatus: "placed",
-      }
-    );
-   await order.save({ session });
-    // ✅ 2. Clear User's Cart
-
+    await order.save({ session });
     user.cart = [];
-    user.orders.push(order.id);
-    await user.save({ validateBeforeSave: true });
+    user.orders.push(order._id);
+    await user.save({ session });
 
-    // ✅ 3. Commit Transaction
     await session.commitTransaction();
     session.endSession();
 
+   
+
     return res.status(201).json({
       message: "Order placed successfully",
-      order: order[0],
+      order,
+      delivery: deliveryResult || null,
     });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
     console.error("Order creation failed:", error);
-    return res
-      .status(500)
-      .json({ error: "Failed to place order", details: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
+
 router.get("/orders/:id", async (req, res) => {
   try {
     const { id } = req.params;
