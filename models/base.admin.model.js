@@ -106,7 +106,8 @@ const productSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Product",
           },
-          variantId: { type: String }
+          variantId: { type: String },
+          variantPrice
         }
       ],
       comboPrice:{
