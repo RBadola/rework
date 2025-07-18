@@ -137,7 +137,7 @@ router.post(
       for (const file of req.files.images) {
         const imageUrl = await uploadImageToCloudinary(
           file.buffer,
-          `products/${id}/images`
+          `products/images`
         );
         uploadedImages.push(imageUrl);
       }
@@ -157,10 +157,9 @@ router.post(
         inStock,
         isBestSeller,
         variants,
-        stocks,
+        stocks,comboProduct
       } = req.body;
-
-      const parsedProduct = {
+       const parsedProduct = {
         name,
         category,
         description,
@@ -172,8 +171,16 @@ router.post(
         isBestSeller: isBestSeller === "true",
         images: uploadedImages,
         labReport: labReportUrl,
-        variants: JSON.parse(variants),
+       
       };
+      if(comboProduct){
+        parsedProduct["comboProduct"]=JSON.parse(comboProduct)
+        parsedProduct["variants"]=null
+      }else{
+        parsedProduct["comboProduct"]=null
+        parsedProduct["variants"]=JSON.parse(variants)
+      }
+     
 
       const newProduct = new Product(parsedProduct);
       const data = await newProduct.save();

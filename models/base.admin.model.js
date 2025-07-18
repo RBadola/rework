@@ -99,6 +99,21 @@ const productSchema = new mongoose.Schema(
         variantDiscount: Number,
       },
     ],
+    comboProduct: {
+      products: [
+        {
+          productId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Product",
+          },
+          variantId: { type: String }
+        }
+      ],
+      comboPrice:{
+          type:Number,
+          required:true
+      }
+    },
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     isFeatured: { type: Boolean, default: false },
@@ -315,7 +330,7 @@ orderSchema.pre("save", async function (next) {
   try {
     const istNow = DateTime.now().setZone("Asia/Kolkata");
     const datePart = istNow.toFormat("HHmmyyyyLLdd");
-  
+
     this.orderId = `ORD-${Math.random() * 9000}-${datePart}`;
     next();
   } catch (err) {
