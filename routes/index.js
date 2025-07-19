@@ -10,7 +10,7 @@ router.use("/admin",AdminRoutes)
 router.use("/user",UserRouter)
 router.get("/products", async (req, res) => {
   try {
-    const products = await Product.find();
+    const products = await Product.find({isActive:true});
     res.status(200).json({ data: products });
   } catch (err) {
     logger.error("PRODUCT: Error occurred", err);
