@@ -74,6 +74,7 @@ export const Admin = BaseUser.discriminator("Admin", AdminSchema);
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    subHeading: { type: String, required: true, trim: true },
     slug: { type: String, unique: true, lowercase: true }, // URL-friendly name
     description: { type: String },
     category: { type: String, required: true },
@@ -81,7 +82,7 @@ const productSchema = new mongoose.Schema(
     discount: { type: Number, default: 0 }, // percentage
     finalPrice: { type: Number },
     images: [{ type: String }],
-    labReport: String,
+    labReport: [{ type: String }],
     inStock: { type: Boolean, default: true },
     // stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
@@ -110,8 +111,7 @@ const productSchema = new mongoose.Schema(
         }
       ],
       comboPrice:{
-          type:Number,
-          required:true
+          type:Number
       }
     },
     rating: { type: Number, default: 0 },

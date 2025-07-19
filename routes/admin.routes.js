@@ -144,8 +144,11 @@ router.post(
 
       // console.log(images);
       // Upload PDF
-      const labReportUrl =
-        labReport.length > 0 ? await uploadPDF(labReport[0]) : null;
+      const labReportUrls = [];
+      for (const file of labReport) {
+        const reportUrl = await await uploadPDF(file);
+        labReportUrls.push(reportUrl);
+      }
 
       const {
         name,
@@ -159,6 +162,7 @@ router.post(
         variants,
         stocks,
         comboProduct,
+        subHeading,
       } = req.body;
       const parsedProduct = {
         name,
@@ -171,16 +175,14 @@ router.post(
         inStock: inStock === "true",
         isBestSeller: isBestSeller === "true",
         images: uploadedImages,
-        labReport: labReportUrl,
+        labReport: labReportUrls,
+        subHeading,comboProduct: JSON.parse(comboProduct),variants: JSON.parse(variants)
       };
-      if (comboProduct) {
-        parsedProduct["comboProduct"] = JSON.parse(comboProduct);
-        parsedProduct["variants"] = null;
-      } else {
-        parsedProduct["comboProduct"] = null;
-        parsedProduct["variants"] = JSON.parse(variants);
-      }
-
+    //   parsedProduct["comboProduct"] = JSON.parse(comboProduct);
+    //  if (variants && ) {
+    //     parsedProduct["variants"] = JSON.parse(variants);
+    //   } else {
+    //   }
       const newProduct = new Product(parsedProduct);
       const data = await newProduct.save();
 
@@ -219,13 +221,14 @@ router.get("/products/:id", async (req, res) => {
 
 router.patch(
   "/products/:id",
-  upload.fields([{ name: "images" }, { name: "labReport", maxCount: 1 }]),
+  upload.fields([{ name: "images" }, { name: "labReport" }]),
   async (req, res) => {
     try {
       const { id } = req.params;
       const { images = [], labReport = [] } = req.files;
       const {
         name,
+        subHeading,
         category,
         description,
         discount,
@@ -242,7 +245,11 @@ router.patch(
         : req.body.existingImages
         ? [req.body.existingImages]
         : [];
-
+      const existingReports = Array.isArray(req.body.existingReports)
+        ? req.body.existingReports
+        : req.body.existingReports
+        ? [req.body.existingReports]
+        : [];
       // upload new images
       const uploadedImages = [];
 
@@ -253,15 +260,18 @@ router.patch(
         );
         uploadedImages.push(imageUrl);
       }
-
-      let labReportURl = null;
-      if (labReport?.[0]) {
-        labReportURl = await uploadPDF(labReport[0]);
+      const labReportUrls = [];
+      for (const file of labReport) {
+        const reportUrl = await await uploadPDF(file);
+        labReportUrls.push(reportUrl);
       }
-      const finalImages = [...existingImages, ...uploadedImages];
 
+     
+      const finalImages = [...existingImages, ...uploadedImages];
+      const finalReports = [...existingReports,...labReportUrls]
       const parsedProduct = {
         name,
+        subHeading,
         category,
         description,
         discount: Number(discount),
@@ -271,15 +281,13 @@ router.patch(
         isBestSeller: isBestSeller === "true",
         stocks: JSON.parse(stocks),
         images: finalImages,
-        labReport: labReportURl,
+        labReport: finalReports,comboProduct: JSON.parse(comboProduct),variants: JSON.parse(variants)
       };
-      if (comboProduct) {
-        parsedProduct["comboProduct"] = JSON.parse(comboProduct);
-        parsedProduct["variants"] = null;
-      } else {
-        parsedProduct["comboProduct"] = null;
-        parsedProduct["variants"] = JSON.parse(variants);
-      }
+      // if (variants  && variants.length > 0) {
+      //   parsedProduct["variants"] = JSON.parse(variants);
+      // } else {
+      //   parsedProduct["comboProduct"] = JSON.parse(comboProduct);
+      // }
       const updated = await Product.findByIdAndUpdate(id, parsedProduct, {
         new: true,
         runValidators: true,
