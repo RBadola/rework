@@ -349,15 +349,29 @@ const categorySchema = new Schema(
       unique: true,
       trim: true,
     },
-    image: String,
+    image: {type:String,required:true},
     isActive: {
       type: Boolean,
       default: true,
     },
+    slug:{
+       type: String
+    }
   },
   { timestamps: true }
 );
-
+categorySchema.pre("save", async function (next) {
+  try {
+    if (this.isModified("name")) {
+      this.slug = slugify(this.name, { lower: true, strict: true, trim: true });
+    }
+    next();
+  } catch (err) {
+    console.error("Error", err.message);
+    console.log(err.message);
+    next(err);
+  }
+});
 categorySchema.set("toJSON", {
   transform: (doc, ret) => {
     ret.id = ret._id;
@@ -368,3 +382,15 @@ categorySchema.set("toJSON", {
 });
 
 export const Category = models?.Category || model("Category", categorySchema);
+
+const BannerSchema  = new mongoose.Schema({
+  image:{type:String,required:true},
+  name:{type:String,required:true},
+  status:{
+    type:String,
+    enum:["active","inactive"],
+    default:"active"
+  }
+})
+
+export const Banner = models?.Banner || model("Banner",BannerSchema)

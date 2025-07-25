@@ -2,6 +2,7 @@ import { Router } from "express";
 import { v2 as cloudinary } from "cloudinary";
 import {
   Admin,
+  Banner,
   BaseUser,
   Category,
   Customer,
@@ -176,13 +177,15 @@ router.post(
         isBestSeller: isBestSeller === "true",
         images: uploadedImages,
         labReport: labReportUrls,
-        subHeading,comboProduct: JSON.parse(comboProduct),variants: JSON.parse(variants)
+        subHeading,
+        comboProduct: JSON.parse(comboProduct),
+        variants: JSON.parse(variants),
       };
-    //   parsedProduct["comboProduct"] = JSON.parse(comboProduct);
-    //  if (variants && ) {
-    //     parsedProduct["variants"] = JSON.parse(variants);
-    //   } else {
-    //   }
+      //   parsedProduct["comboProduct"] = JSON.parse(comboProduct);
+      //  if (variants && ) {
+      //     parsedProduct["variants"] = JSON.parse(variants);
+      //   } else {
+      //   }
       const newProduct = new Product(parsedProduct);
       const data = await newProduct.save();
 
@@ -266,9 +269,8 @@ router.patch(
         labReportUrls.push(reportUrl);
       }
 
-     
       const finalImages = [...existingImages, ...uploadedImages];
-      const finalReports = [...existingReports,...labReportUrls]
+      const finalReports = [...existingReports, ...labReportUrls];
       const parsedProduct = {
         name,
         subHeading,
@@ -281,7 +283,9 @@ router.patch(
         isBestSeller: isBestSeller === "true",
         stocks: JSON.parse(stocks),
         images: finalImages,
-        labReport: finalReports,comboProduct: JSON.parse(comboProduct),variants: JSON.parse(variants)
+        labReport: finalReports,
+        comboProduct: JSON.parse(comboProduct),
+        variants: JSON.parse(variants),
       };
       // if (variants  && variants.length > 0) {
       //   parsedProduct["variants"] = JSON.parse(variants);
@@ -314,15 +318,26 @@ router.delete("/products/:id", async (req, res) => {
 });
 
 // admin category routes
-router.post("/category/", async (req, res) => {
-  try {
-    const newCategory = await Product.create(req.body);
-    return res.status(201).json({ data: newCategory });
-  } catch (err) {
-    console.error(err.message);
-    return res.status(400).json({ error: "Failed to create product" });
+router.post(
+  "/category",
+  upload.fields([{ name: "image" }]),
+  async (req, res) => {
+    try {
+      const imageUrl = await uploadImageToCloudinary(
+        req.files.image[0].buffer,
+        `products/category`
+      );
+      const newCategory = await Category.create({
+        name: req.body.name,
+        image: imageUrl,
+      });
+      return res.status(201).json({ data: newCategory });
+    } catch (err) {
+      console.error(err.message);
+      return res.status(400).json({ error: "Failed To Create Category" });
+    }
   }
-});
+);
 router.get("/categories", async (req, res) => {
   try {
     const categories = await Category.find();
@@ -346,6 +361,39 @@ router.get("/customers", async (req, res) => {
     return res.status(400).json({ error: "Invalid Request" });
   }
 });
+
+router.get("/banner", async (req, res) => {
+  try {
+    const Banners = await Banner.find();
+    res.status(200).json({ data: Banners });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Internal Server Error " });
+  }
+});
+router.post(
+  "/banner",
+  upload.fields([{ name: "images" }]),
+  async (req, res) => {
+    try {
+      const uploadedImages = [];
+      for (const file of req.files.images) {
+        console.log(file);
+        const imageUrl = await uploadImageToCloudinary(
+          file.buffer,
+          `products/banner`
+        );
+        uploadedImages.push({ image: imageUrl, name: file.originalname });
+      }
+      const banner = await Banner.insertMany(uploadedImages);
+      // const data = await banner.save()
+      return res.status(200).json({ data: banner });
+    } catch (err) {
+      console.error(err.message);
+      return res.status(400).json({ error: "Invalid Request" });
+    }
+  }
+);
 // router.get("/coupon/:id", async (req, res) => {});
 // router.patch("/coupon/:id", async (req, res) => {});
 // router.delete("/coupon/:id", async (req, res) => {});
