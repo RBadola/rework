@@ -33,3 +33,11 @@ export const verifyToken = async (req, res, next) => {
     });
   }
 };
+
+
+export const isAdmin = (req, res, next) => {
+  if (req.id && req.role === "admin") {
+    return next();
+  }
+  return res.status(403).json({ message: "Admin access only" });
+};

@@ -1,7 +1,7 @@
 import { Router } from "express"
 import AdminRoutes from "./admin.routes.js"
 import UserRouter from "./user.routes.js"
-import { Product } from "../models/base.admin.model.js"
+import { Banner, Product } from "../models/base.admin.model.js"
 import { logger } from "../helpers/logger.js"
 import DeliveryRoutes from "./delhivery.routes.js"
 const router = Router()
@@ -32,4 +32,31 @@ router.get("/products/:id", async (req, res) => {
 });
 
 router.use("/delivery",DeliveryRoutes)
+
+
+router.get("/banners", async (req, res) => {
+  try {
+    const Banners = await Banner.find();
+    res.status(200).json({ data: Banners });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Internal Server Error " });
+  }
+});
+router.post("/verify", (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const crypto = require("crypto");
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_SECRET)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest("hex");
+
+  if (expectedSignature === razorpay_signature) {
+    res.send({ success: true, message: "Payment verified successfully" });
+  } else {
+    res.status(400).send({ success: false, message: "Invalid signature" });
+  }
+});
+
 export default router

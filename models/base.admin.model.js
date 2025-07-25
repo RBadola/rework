@@ -2,8 +2,7 @@ import mongoose from "mongoose";
 const { Schema, model, models } = mongoose;
 import { DateTime } from "luxon";
 
-// Get current time in IST
-const istNow = DateTime.now().setZone("Asia/Kolkata");
+
 
 // import { logger } from "../helpers/logger.js";
 import bcrypt from "bcrypt";
@@ -278,7 +277,7 @@ const orderSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       enum: ["COD", "UPI", "Card", "Netbanking", "Wallet"],
-      default: "COD",
+      default: "UPI",
     },
     paymentDetails: {
       transactionId: String,
@@ -331,7 +330,7 @@ orderSchema.pre("save", async function (next) {
     const istNow = DateTime.now().setZone("Asia/Kolkata");
     const datePart = istNow.toFormat("HHmmyyyyLLdd");
 
-    this.orderId = `ORD-${Math.random() * 9000}-${datePart}`;
+    this.orderId = `ORD-${Math.random(0) * 9000}-${datePart}`;
     next();
   } catch (err) {
     console.error("Error", err.message);
@@ -394,3 +393,37 @@ const BannerSchema  = new mongoose.Schema({
 })
 
 export const Banner = models?.Banner || model("Banner",BannerSchema)
+
+
+
+const reviewSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+    },
+    comment: {
+      type: String,
+      trim: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Review = mongoose.model("Review", reviewSchema);
+
+export default Review;

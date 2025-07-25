@@ -4,6 +4,12 @@ import { Customer, Order, Product } from "../models/base.admin.model.js";
 import { generateToken, verifyToken } from "../helpers/jwt.js";
 import mongoose from "mongoose";
 import { createDelhiveryOrder } from "../services/delhivery.js";
+import {
+  createReview,
+  getReviewsByProduct,
+  updateReview,
+  deleteReview,
+} from "../controllers/review.controller.js";
 
 const router = Router();
 
@@ -307,7 +313,7 @@ router.post("/orders", async (req, res) => {
       finalAmount,
       paymentMethod,
       paymentDetails,
-      paymentStatus: paymentMethod === "COD" ? "pending" : "paid",
+      paymentStatus:  "pending",
       orderStatus: "placed",
     });
     // 🟡 Call external API after transaction
@@ -319,8 +325,8 @@ router.post("/orders", async (req, res) => {
       state: shippingAddress?.state,
       country: "IN",
       phone: user?.phone || "0000000000",
-      order: `Order-${order._id}`,
-      payment_mode: paymentMethod === "COD" ? "COD" : "Prepaid",
+      order: `${order._id}`,
+      payment_mode: "Prepaid",
       products_desc: "Mixed items",
       total_amount: finalAmount,
       shipment_width: "10",
@@ -331,10 +337,10 @@ router.post("/orders", async (req, res) => {
       address_type: "Home",
     };
 
-    const deliveryResult = await createDelhiveryOrder(shipment);
-    if (!deliveryResult.success) {
-      throw new Error("Delhivery API failed to create shipment");
-    }
+    // const deliveryResult = await createDelhiveryOrder(shipment);
+    // if (!deliveryResult.success) {
+    //   throw new Error("Delhivery API failed to create shipment");
+    // }
     await order.save({ session });
     user.cart = [];
     user.orders.push(order._id);
@@ -344,9 +350,10 @@ router.post("/orders", async (req, res) => {
     session.endSession();
 
     return res.status(201).json({
+      status:"success",
       message: "Order placed successfully",
       order,
-      delivery: deliveryResult || null,
+      // delivery: deliveryResult || null,
     });
   } catch (error) {
     await session.abortTransaction();
@@ -378,5 +385,11 @@ router.get("/orders/:id", async (req, res) => {
 // router.post("/wishlist/",async(req,res)=>{}) //c
 // router.get("/wishlist/",async(req,res)=>{}) //r
 // router.delete("/wishlist/:id",async(req,res)=>{}) //d
+
+
+router.post("/review",verifyToken, createReview); // POST /api/reviews
+router.get("/:productId", getReviewsByProduct); // GET /api/reviews/:productId
+router.put("/:reviewId", verifyToken, updateReview); // PUT /api/reviews/:reviewId
+router.delete("/:reviewId", verifyToken, deleteReview); // DELETE /api/reviews/:reviewId
 
 export default router;

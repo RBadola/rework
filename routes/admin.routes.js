@@ -9,10 +9,17 @@ import {
   Order,
   Product,
 } from "../models/base.admin.model.js";
+import {
+  getAllReviews,
+  deleteReviewById,
+  deleteAllReviews,
+  createMockReview,
+  updateMockReview,
+} from "../controllers/review.controller.js";
 // import { performance } from "perf_hooks";
 import { logger } from "../helpers/logger.js";
 import { generateToken } from "../helpers/jwt.js";
-import { verifyToken } from "../middleware/auth.middleware.js";
+import { isAdmin, verifyToken } from "../middleware/auth.middleware.js";
 import multer from "multer";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -438,5 +445,17 @@ router.get("/orders", async (req, res) => {
 // router.get("/refunds/:id", async (req, res) => {});
 // router.post("/refunds", async (req, res) => {});
 // router.patch("/refunds/:id", async (req, res) => {});
+router.get("/reviews", verifyToken, isAdmin, getAllReviews);
 
+// DELETE /api/admin/reviews/:id
+router.delete("/:id", verifyToken, isAdmin, deleteReviewById);
+
+// DELETE /api/admin/reviews?product=<productId>
+router.delete("/", verifyToken, isAdmin, deleteAllReviews);
+
+// POST /api/admin/reviews/mock
+router.post("/mock", verifyToken, isAdmin, createMockReview);
+
+// PUT /api/admin/reviews/mock/:id
+router.put("/mock/:id", verifyToken, isAdmin, updateMockReview);
 export default router;
