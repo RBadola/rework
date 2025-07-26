@@ -84,37 +84,55 @@ export async function getDeliveryCost(deliveryPincode) {
 }
 
 export async function createDelhiveryOrder(shipments = []) {
-  const payload = {
-    format: "json",
-    data: {
-      "shipments": [JSON.stringify(shipments)],
-      "pickup_location": { "name": "Test" },
-    }
+  const innerPayload = {
+    shipments: [shipments],
+    pickup_location: { name: "Test" },
   };
+
+  const jsonString = JSON.stringify(innerPayload);
+
+  const params = new URLSearchParams();
+  params.append("format", "json");
+  params.append("data", jsonString);
+
   const headers = {
-  'Content-Type': 'application/x-www-form-urlencoded',
-  'Authorization':`Token ${DELHIVERY_API_TOKEN}`
-};
+    "Content-Type": "application/x-www-form-urlencoded",
+    Authorization: `Token ${DELHIVERY_API_TOKEN}`,
+  };
+
   try {
     const response = await axios.post(
       "https://track.delhivery.com/api/cmu/create.json",
-      JSON.stringify(payload),
+      params,
       { headers }
     );
-    if (
-      !response.success ||
-      response.packages.some((pkg) => pkg.status !== "Success")
-    ) {
-      console.log(response.data);
-      throw new Error("Falied to create shipment");
+
+    const data = response.data;
+
+    // If top-level success is false
+    if (!data.success) {
+      throw new Error(`Delhivery API returned success: false. Details: ${JSON.stringify(data)}`);
     }
 
-    return response.data;
+    // If any of the individual packages failed
+    const failedPackages = data.packages.filter(pkg => pkg.status !== "Success");
+
+    if (failedPackages.length > 0) {
+      const reasons = failedPackages.map(pkg => pkg.remarks?.join(", ") || "Unknown reason").join("; ");
+      throw new Error(`One or more shipments failed: ${reasons}`);
+    }
+
+    return data;
   } catch (error) {
     console.error(
       "Delhivery order creation failed:",
       error?.response?.data || error.message
     );
-    throw error;
+    throw new Error(
+      `Delhivery order creation failed: ${JSON.stringify(
+        error?.response?.data || error.message
+      )}`
+    );
   }
 }
+

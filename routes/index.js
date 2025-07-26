@@ -1,13 +1,31 @@
-import { Router } from "express"
-import AdminRoutes from "./admin.routes.js"
-import UserRouter from "./user.routes.js"
-import { Banner, Product } from "../models/base.admin.model.js"
-import { logger } from "../helpers/logger.js"
-import DeliveryRoutes from "./delhivery.routes.js"
-const router = Router()
+import { Router } from "express";
+import AdminRoutes from "./admin.routes.js";
+import UserRouter from "./user.routes.js";
+import {
+  Banner,
+  Category,
+  Customer,
+  Order,
+  Product,
+} from "../models/base.admin.model.js";
+import { logger } from "../helpers/logger.js";
+import DeliveryRoutes from "./delhivery.routes.js";
+import Razorpay from "razorpay";
+import crypto from "crypto";
+import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils.js";
 
-router.use("/admin",AdminRoutes)
-router.use("/user",UserRouter)
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import { createDelhiveryOrder } from "../services/delhivery.js";
+import { DateTime } from "luxon";
+const router = Router();
+dotenv.config();
+const razorpay = new Razorpay({
+  key_id: process.env.RAZOR_KEY_ID,
+  key_secret: process.env.RAZOR_KEY_SECRET,
+});
+router.use("/admin", AdminRoutes);
+router.use("/user", UserRouter);
 router.get("/products", async (req, res) => {
   try {
     const products = await Product.find();
@@ -31,8 +49,7 @@ router.get("/products/:id", async (req, res) => {
   }
 });
 
-router.use("/delivery",DeliveryRoutes)
-
+router.use("/delivery", DeliveryRoutes);
 
 router.get("/banners", async (req, res) => {
   try {
@@ -43,20 +60,96 @@ router.get("/banners", async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error " });
   }
 });
-router.post("/verify", (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-  const crypto = require("crypto");
-  const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_SECRET)
-    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-    .digest("hex");
+router.post("/verify", async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    orderId,
+    userId,
+  } = req.body;
 
-  if (expectedSignature === razorpay_signature) {
-    res.send({ success: true, message: "Payment verified successfully" });
-  } else {
-    res.status(400).send({ success: false, message: "Invalid signature" });
+  const secret = process.env.RAZOR_KEY_SECRET;
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    validatePaymentVerification(
+      { order_id: razorpay_order_id, payment_id: razorpay_payment_id },
+      razorpay_signature,
+      secret
+    );
+    const user = await Customer.findById(userId).session(session);
+    if (!user) throw new Error("User not found");
+
+    // If valid, update order status in DB
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      {
+        paymentStatus: "paid",
+        paymentId: razorpay_payment_id,
+      },
+      { new: true, runValidators: true }
+    ).session(session);
+    // console.log(order);
+    const shipment = {
+      name: user.name,
+      add: `${order.shippingAddress?.addressLine1} ${order.shippingAddress?.addressLine2} ${order.shippingAddress?.landmark}`,
+      pin: order.shippingAddress?.pincode,
+      city: order.shippingAddress?.city,
+      state: order.shippingAddress?.state,
+      country: "India",
+      phone: user?.phone || "8882541082",
+      order: `${order._id}`,
+      payment_mode: "Prepaid",
+      products_desc: "Mixed items",
+      total_amount: order.finalAmount,
+      shipment_width: "10",
+      shipment_height: "10",
+      shipment_length: "10",
+      weight: "500",
+      shipping_mode: "Surface",
+      address_type: "Home",
+    };
+
+    const deliveryResult = await createDelhiveryOrder(shipment);
+    if (!deliveryResult.success) {
+      throw new Error(deliveryResult);
+    }
+    await Order.findByIdAndUpdate(
+      orderId,
+      {
+        orderStatus: "placed",
+        deliveryDetails: {
+          uploadWbn: deliveryResult?.upload_wbn,
+          packages: deliveryResult?.packages,
+        },
+      },
+      { new: true, runValidators: true }
+    ).session(session);
+    user.cart = [];
+    user.orders.push(order._id);
+    await user.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+    res.json({ success: true });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Verification failed:", err);
+    res.status(400).json({ success: false, error: err });
+  }
+});
+router.get("/categories", async (req, res) => {
+  try {
+    const categories = await Category.find({isActive:true});
+    res.status(200).json({ data: categories });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Failed to Fetch Categories" });
   }
 });
 
-export default router
+export default router;

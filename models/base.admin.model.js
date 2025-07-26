@@ -2,8 +2,6 @@ import mongoose from "mongoose";
 const { Schema, model, models } = mongoose;
 import { DateTime } from "luxon";
 
-
-
 // import { logger } from "../helpers/logger.js";
 import bcrypt from "bcrypt";
 import slugify from "slugify";
@@ -106,12 +104,12 @@ const productSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Product",
           },
-          variantId: { type: String }
-        }
+          variantId: { type: String },
+        },
       ],
-      comboPrice:{
-          type:Number
-      }
+      comboPrice: {
+        type: Number,
+      },
     },
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
@@ -274,20 +272,11 @@ const orderSchema = new mongoose.Schema(
       enum: ["pending", "paid", "failed", "refunded"],
       default: "pending",
     },
-    paymentMethod: {
-      type: String,
-      enum: ["COD", "UPI", "Card", "Netbanking", "Wallet"],
-      default: "UPI",
-    },
-    paymentDetails: {
-      transactionId: String,
-      provider: String,
-      paymentTime: Date,
-    },
-
+    paymentId: String,
     orderStatus: {
       type: String,
       enum: [
+        "pending",
         "placed",
         "confirmed",
         "shipped",
@@ -296,7 +285,7 @@ const orderSchema = new mongoose.Schema(
         "cancelled",
         "returned",
       ],
-      default: "placed",
+      default: "pending",
     },
 
     refundStatus: {
@@ -304,10 +293,22 @@ const orderSchema = new mongoose.Schema(
       enum: ["none", "requested", "approved", "rejected", "processed"],
       default: "none",
     },
-
-    deliveryDate: Date,
-    deliveredAt: Date,
-    cancelledAt: Date,
+    deliveryDetails: {
+      uploadWbn: String,
+      packages: [
+        {
+          status: String,
+          sort_code: String,
+          waybill: String,
+          payment: String,
+          serviceable: Boolean,
+          refnum: String,
+        },
+      ],
+      deliveryDate: Date,
+      deliveredAt: Date,
+      cancelledAt: Date,
+    },
     returnWindow: Number, // days allowed for return
     orderId: {
       type: String,
@@ -325,19 +326,19 @@ orderSchema.set("toJSON", {
     return ret;
   },
 });
-orderSchema.pre("save", async function (next) {
-  try {
-    const istNow = DateTime.now().setZone("Asia/Kolkata");
-    const datePart = istNow.toFormat("HHmmyyyyLLdd");
+// orderSchema.pre("save", async function (next) {
+//   try {
+//     const istNow = DateTime.now().setZone("Asia/Kolkata");
+//     const datePart = istNow.toFormat("HHmmyyyyLLdd");
 
-    this.orderId = `ORD-${Math.random(0) * 9000}-${datePart}`;
-    next();
-  } catch (err) {
-    console.error("Error", err.message);
-    console.log(err.message);
-    next(err);
-  }
-});
+//     this.orderId = `ORD-${Math.random(0) * 9000}-${datePart}`;
+//     next();
+//   } catch (err) {
+//     console.error("Error", err.message);
+//     console.log(err.message);
+//     next(err);
+//   }
+// });
 export const Order = models?.Order || model("Order", orderSchema);
 
 const categorySchema = new Schema(
@@ -348,14 +349,14 @@ const categorySchema = new Schema(
       unique: true,
       trim: true,
     },
-    image: {type:String,required:true},
+    image: { type: String, required: true },
     isActive: {
       type: Boolean,
       default: true,
     },
-    slug:{
-       type: String
-    }
+    slug: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
@@ -382,19 +383,17 @@ categorySchema.set("toJSON", {
 
 export const Category = models?.Category || model("Category", categorySchema);
 
-const BannerSchema  = new mongoose.Schema({
-  image:{type:String,required:true},
-  name:{type:String,required:true},
-  status:{
-    type:String,
-    enum:["active","inactive"],
-    default:"active"
-  }
-})
+const BannerSchema = new mongoose.Schema({
+  image: { type: String, required: true },
+  name: { type: String, required: true },
+  status: {
+    type: String,
+    enum: ["active", "inactive"],
+    default: "active",
+  },
+});
 
-export const Banner = models?.Banner || model("Banner",BannerSchema)
-
-
+export const Banner = models?.Banner || model("Banner", BannerSchema);
 
 const reviewSchema = new mongoose.Schema(
   {

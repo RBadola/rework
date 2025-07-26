@@ -10,8 +10,15 @@ import {
   updateReview,
   deleteReview,
 } from "../controllers/review.controller.js";
-
+import Razorpay from "razorpay";
+import { DateTime } from "luxon";
+import { config } from "dotenv";
+config() 
 const router = Router();
+const razorpay = new Razorpay({
+  key_id: process.env.RAZOR_KEY_ID,
+  key_secret: process.env.RAZOR_KEY_SECRET,
+});
 
 async function decrementVariantStock(items, session) {
   for (const item of items) {
@@ -259,7 +266,7 @@ router.post("/cart", async (req, res) => {
             image: product.images[0],
             comboPrice: product.comboProduct.comboPrice,
             discount: product.discount,
-            finalPrice 
+            finalPrice,
           },
           quantity: cartItem.quantity,
           subtotal,
@@ -294,7 +301,6 @@ router.post("/orders", async (req, res) => {
       discountAmount,
       finalAmount,
       couponCode,
-      paymentMethod,
       paymentDetails,
     } = req.body;
 
@@ -302,7 +308,11 @@ router.post("/orders", async (req, res) => {
     if (!user) throw new Error("User not found");
 
     await decrementVariantStock(items, session);
-
+    const order_id = await razorpay.orders.create({
+      amount:finalAmount * 100, // in paise
+      currency: "INR",
+      receipt: `receipt_${DateTime.now().setZone("Asia/Kolkata")}`,
+    });
     const order = new Order({
       userId,
       items,
@@ -311,46 +321,46 @@ router.post("/orders", async (req, res) => {
       discountAmount,
       couponCode,
       finalAmount,
-      paymentMethod,
       paymentDetails,
-      paymentStatus:  "pending",
-      orderStatus: "placed",
+      orderId:order_id.id,
+      paymentStatus: "pending",
+      orderStatus: "pending",
     });
-    // 🟡 Call external API after transaction
-    const shipment = {
-      name: user.name,
-      add: `${shippingAddress?.addressLine1} ${shippingAddress?.addressLine2} ${shippingAddress?.landmark}`,
-      pin: shippingAddress?.pincode,
-      city: shippingAddress?.city,
-      state: shippingAddress?.state,
-      country: "IN",
-      phone: user?.phone || "0000000000",
-      order: `${order._id}`,
-      payment_mode: "Prepaid",
-      products_desc: "Mixed items",
-      total_amount: finalAmount,
-      shipment_width: "10",
-      shipment_height: "10",
-      shipment_length: "10",
-      weight: "500",
-      shipping_mode: "Surface",
-      address_type: "Home",
-    };
+    //  Call external API after transaction
+    // const shipment = {
+    //   name: user.name,
+    //   add: `${shippingAddress?.addressLine1} ${shippingAddress?.addressLine2} ${shippingAddress?.landmark}`,
+    //   pin: shippingAddress?.pincode,
+    //   city: shippingAddress?.city,
+    //   state: shippingAddress?.state,
+    //   country: "IN",
+    //   phone: user?.phone || "0000000000",
+    //   order: `${order._id}`,
+    //   payment_mode: "Prepaid",
+    //   products_desc: "Mixed items",
+    //   total_amount: finalAmount,
+    //   shipment_width: "10",
+    //   shipment_height: "10",
+    //   shipment_length: "10",
+    //   weight: "500",
+    //   shipping_mode: "Surface",
+    //   address_type: "Home",
+    // };
 
     // const deliveryResult = await createDelhiveryOrder(shipment);
     // if (!deliveryResult.success) {
     //   throw new Error("Delhivery API failed to create shipment");
     // }
     await order.save({ session });
-    user.cart = [];
-    user.orders.push(order._id);
-    await user.save({ session });
+    // user.cart = [];
+    // user.orders.push(order._id);
+    // await user.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
     return res.status(201).json({
-      status:"success",
+      status: true,
       message: "Order placed successfully",
       order,
       // delivery: deliveryResult || null,
@@ -386,8 +396,7 @@ router.get("/orders/:id", async (req, res) => {
 // router.get("/wishlist/",async(req,res)=>{}) //r
 // router.delete("/wishlist/:id",async(req,res)=>{}) //d
 
-
-router.post("/review",verifyToken, createReview); // POST /api/reviews
+router.post("/review", verifyToken, createReview); // POST /api/reviews
 router.get("/:productId", getReviewsByProduct); // GET /api/reviews/:productId
 router.put("/:reviewId", verifyToken, updateReview); // PUT /api/reviews/:reviewId
 router.delete("/:reviewId", verifyToken, deleteReview); // DELETE /api/reviews/:reviewId

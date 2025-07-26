@@ -41,6 +41,12 @@ export const uploadImageToCloudinary = async (buffer, folder) => {
       {
         folder,
         resource_type: "image",
+         transformation: [
+          { width: "auto",  crop: "fill" }, // or crop: "fill_pad"
+          { fetch_format: "auto" },
+          { quality: "auto" },
+          { dpr: "auto" },
+        ],
       },
       (err, result) => {
         if (err) return reject(err);
