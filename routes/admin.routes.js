@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { v2 as cloudinary } from "cloudinary";
 import {
+  About,
   Admin,
   Banner,
   BaseUser,
@@ -23,7 +24,11 @@ import { isAdmin, verifyToken } from "../middleware/auth.middleware.js";
 import multer from "multer";
 import { fileURLToPath } from "url";
 import path from "path";
-import { deleteFromCloudinary, uploadImageToCloudinary, uploadPDF } from "../helpers/cloud.js";
+import {
+  deleteFromCloudinary,
+  uploadImageToCloudinary,
+  uploadPDF,
+} from "../helpers/cloud.js";
 const router = Router();
 const __fileName = import.meta.url;
 const __dirName = fileURLToPath(__fileName);
@@ -466,7 +471,51 @@ router.delete("/banner/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to delete banner" });
   }
 });
+router.get("/about", async (req, res) => {
+  try {
+    const Banners = await About.find().sort({ createdAt: 1 });
+    res.status(200).json({ data: Banners });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Internal Server Error " });
+  }
+});
+router.post("/about", upload.fields([{ name: "images" }]), async (req, res) => {
+  try {
+    const uploadedImages = [];
+    for (const file of req.files.images) {
+      console.log(file);
+      const imageUrl = await uploadImageToCloudinary(file.buffer, `about`);
+      uploadedImages.push({ image: imageUrl, name: file.originalname });
+    }
+    const banner = await About.insertMany(uploadedImages);
+    // const data = await banner.save()
+    return res.status(200).json({ data: banner });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Invalid Request" });
+  }
+});
+router.delete("/about/:id", async (req, res) => {
+  try {
+    const banner = await About.findById(req.params.id);
+    if (!banner) {
+      return res.status(404).json({ error: "About not found" });
+    }
+    console.log("To Be Deleted Banner:",banner);
 
+    // Delete image from Cloudinary
+    await deleteFromCloudinary(banner.image);
+
+    // Remove from DB
+    const deleted = await About.findByIdAndDelete(req.params.id);
+    console.log("Deleted Banner:", deleted,req.params.id);
+    res.status(200).json({ message: "About deleted successfully" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Failed to delete about" });
+  }
+});
 // router.get("/coupon/:id", async (req, res) => {});
 // router.patch("/coupon/:id", async (req, res) => {});
 // router.delete("/coupon/:id", async (req, res) => {});

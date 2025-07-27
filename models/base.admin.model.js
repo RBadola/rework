@@ -391,7 +391,7 @@ const BannerSchema = new mongoose.Schema({
     enum: ["active", "inactive"],
     default: "active",
   },
-});
+}, { timestamps: true });
 BannerSchema.set("toJSON", {
   transform: (doc, ret) => {
     ret.id = ret._id;
@@ -429,7 +429,27 @@ const reviewSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+reviewSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+},{timestamps:true});
+export const Review = models.Review || mongoose.model("Review", reviewSchema);
 
-const Review = mongoose.model("Review", reviewSchema);
+const AboutSchema = new mongoose.Schema({
+  name:String,
+  image:String,
 
-export default Review;
+},{timestamps:true})
+AboutSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+},{timestamps:true});
+export const About = models.About  ||  mongoose.model("About",AboutSchema);

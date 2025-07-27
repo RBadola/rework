@@ -1,4 +1,4 @@
-import Review from "../models/base.admin.model.js";
+import {Review} from "../models/base.admin.model.js";
 
 // Create a review
 export const createReview = async (req, res) => {
