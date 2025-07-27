@@ -392,7 +392,14 @@ const BannerSchema = new mongoose.Schema({
     default: "active",
   },
 });
-
+BannerSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});
 export const Banner = models?.Banner || model("Banner", BannerSchema);
 
 const reviewSchema = new mongoose.Schema(

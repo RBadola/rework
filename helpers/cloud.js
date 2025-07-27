@@ -56,4 +56,19 @@ export const uploadImageToCloudinary = async (buffer, folder) => {
     stream.end(buffer);
   });
 };
+export const deleteFromCloudinary = async (imageUrl) => {
+  try {
+    const urlParts = imageUrl.split("/upload/");
+    if (urlParts.length < 2) {
+      console.error("Invalid image URL format");
+      return;
+    }
 
+    const fullPathWithExt = urlParts[1]; // e.g. "products/category/abc123.png"
+    const fullPublicId = fullPathWithExt.replace(/\.[^/.]+$/, ""); // remove extension
+
+    await cloudinary.uploader.destroy(fullPublicId);
+  } catch (error) {
+    console.error("Error deleting from Cloudinary:", error.message);
+  }
+};

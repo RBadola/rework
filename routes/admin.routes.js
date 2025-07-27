@@ -23,7 +23,7 @@ import { isAdmin, verifyToken } from "../middleware/auth.middleware.js";
 import multer from "multer";
 import { fileURLToPath } from "url";
 import path from "path";
-import { uploadImageToCloudinary, uploadPDF } from "../helpers/cloud.js";
+import { deleteFromCloudinary, uploadImageToCloudinary, uploadPDF } from "../helpers/cloud.js";
 const router = Router();
 const __fileName = import.meta.url;
 const __dirName = fileURLToPath(__fileName);
@@ -355,6 +355,27 @@ router.get("/categories", async (req, res) => {
   }
 });
 
+// DELETE /category/:id
+router.delete("/category/:id", async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id);
+
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+
+    // Delete image from Cloudinary
+    await deleteFromCloudinary(category.image);
+
+    // Delete category from DB
+    await Category.findByIdAndDelete(req.params.id);
+
+    return res.status(200).json({ message: "Category deleted successfully" });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Failed to delete category" });
+  }
+});
 // admin customer routes
 // router.post("/coupon/create", async (req, res) => {});
 router.get("/customers", async (req, res) => {
@@ -401,6 +422,51 @@ router.post(
     }
   }
 );
+// PATCH /banner/:id/status
+router.patch("/banner/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const updatedBanner = await Banner.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!updatedBanner) {
+      return res.status(404).json({ error: "Banner not found" });
+    }
+
+    res.status(200).json({ data: updatedBanner });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+router.delete("/banner/:id", async (req, res) => {
+  try {
+    const banner = await Banner.findById(req.params.id);
+    if (!banner) {
+      return res.status(404).json({ error: "Banner not found" });
+    }
+
+    // Delete image from Cloudinary
+    await deleteFromCloudinary(banner.image);
+
+    // Remove from DB
+    await Banner.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({ message: "Banner deleted successfully" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Failed to delete banner" });
+  }
+});
+
 // router.get("/coupon/:id", async (req, res) => {});
 // router.patch("/coupon/:id", async (req, res) => {});
 // router.delete("/coupon/:id", async (req, res) => {});
