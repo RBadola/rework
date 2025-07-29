@@ -155,6 +155,15 @@ router.patch("/update/address", async (req, res) => {
   try {
     let updated;
 
+    // Step 1: If default is true, unset default from all other addresses
+    if (address.default === true) {
+      await Customer.updateOne(
+        { _id: id },
+        { $set: { "addresses.$[].default": false } }
+      );
+    }
+
+    // Step 2: Add or update address
     if (!address._id) {
       // No _id means it's a new address → ADD it
       updated = await Customer.findByIdAndUpdate(
@@ -184,6 +193,7 @@ router.patch("/update/address", async (req, res) => {
     return res.status(400).json({ error: "Failed to update address" });
   }
 });
+
 
 router.post("/cart", async (req, res) => {
   try {
