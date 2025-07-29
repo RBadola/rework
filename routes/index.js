@@ -95,13 +95,13 @@ router.post("/verify", async (req, res) => {
     ).session(session);
     // console.log(order);
     const shipment = {
-      name: user.name,
+      name: "Binni Aswal",
       add: `${order.shippingAddress?.addressLine1} ${order.shippingAddress?.addressLine2} ${order.shippingAddress?.landmark}`,
       pin: order.shippingAddress?.pincode,
       city: order.shippingAddress?.city,
       state: order.shippingAddress?.state,
       country: "India",
-      phone: user?.phone || "8882541082",
+      phone: user?.phone || "8527210242",
       order: `${order._id}`,
       payment_mode: "Prepaid",
       products_desc: "Mixed items",
