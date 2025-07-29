@@ -13,7 +13,7 @@ import {
 import Razorpay from "razorpay";
 import { DateTime } from "luxon";
 import { config } from "dotenv";
-config() 
+config();
 const router = Router();
 const razorpay = new Razorpay({
   key_id: process.env.RAZOR_KEY_ID,
@@ -138,25 +138,11 @@ router.patch("/update/cart", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // const existingItems = user.cart || [];
-
-    // // Merge only new items (by product ID)
-    // const mergedCart = [...existingItems];
-
-    // newItems.items.forEach((newItem) => {
-    //   const alreadyExists = existingItems.some(
-    //     (item) => item.product.toString() === newItem.product.toString()
-    //   );
-    //   if (!alreadyExists) {
-    //     mergedCart.push(newItem);
-    //   }
-    // });
-
     user.cart = newItems.items;
 
     const updated = await user.save({ validateBeforeSave: true });
 
-    return res.status(200).json({ data: updated });
+    return res.status(200).json({ data: updated.cart });
   } catch (err) {
     console.error(err.message);
     return res.status(400).json({ error: "Failed to update cart" });
@@ -202,6 +188,7 @@ router.patch("/update/address", async (req, res) => {
 router.post("/cart", async (req, res) => {
   try {
     const cart = req.body.cart; // [{ product, variantId, quantity }]
+    console.log(cart);
     if (!Array.isArray(cart) || cart.length === 0) {
       return res.status(400).json({ error: "Cart is empty or invalid" });
     }
@@ -215,12 +202,16 @@ router.post("/cart", async (req, res) => {
     const cartDetails = [];
 
     for (let cartItem of cart) {
-      const product = products.find((p) => p.id == cartItem.product);
+      const product = products.find(
+        (p) => p._id.toString() === cartItem.product.toString()
+      );
+
       if (!product) continue;
       if (product.variants) {
         const variant = product.variants.find(
-          (v) => v._id.toString() === cartItem.variantId
+          (v) => v._id.toString() === cartItem.variantId.toString()
         );
+
         if (!variant) continue;
 
         // Calculate price after discount
@@ -274,6 +265,11 @@ router.post("/cart", async (req, res) => {
         });
       }
     }
+    console.log({
+      items: cartDetails,
+      total,
+      finalTotal: total,
+    });
     res.json({
       items: cartDetails,
       total,
@@ -309,7 +305,7 @@ router.post("/orders", async (req, res) => {
 
     await decrementVariantStock(items, session);
     const order_id = await razorpay.orders.create({
-      amount:finalAmount * 100, // in paise
+      amount: finalAmount * 100, // in paise
       currency: "INR",
       receipt: `receipt_${DateTime.now().setZone("Asia/Kolkata")}`,
     });
@@ -322,7 +318,7 @@ router.post("/orders", async (req, res) => {
       couponCode,
       finalAmount,
       paymentDetails,
-      orderId:order_id.id,
+      orderId: order_id.id,
       paymentStatus: "pending",
       orderStatus: "pending",
     });

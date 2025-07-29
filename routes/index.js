@@ -2,6 +2,7 @@ import { Router } from "express";
 import AdminRoutes from "./admin.routes.js";
 import UserRouter from "./user.routes.js";
 import {
+  About,
   Banner,
   Category,
   Customer,
@@ -28,7 +29,7 @@ router.use("/admin", AdminRoutes);
 router.use("/user", UserRouter);
 router.get("/products", async (req, res) => {
   try {
-    const products = await Product.find();
+    const products = await Product.find({isActive:true});
     res.status(200).json({ data: products });
   } catch (err) {
     logger.error("PRODUCT: Error occurred", err);
@@ -151,5 +152,13 @@ router.get("/categories", async (req, res) => {
     return res.status(500).json({ error: "Failed to Fetch Categories" });
   }
 });
-
+router.get("/about", async (req, res) => {
+  try {
+    const Banners = await About.find().sort({ createdAt: 1 });
+    res.status(200).json({ data: Banners });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Internal Server Error " });
+  }
+});
 export default router;
