@@ -175,7 +175,7 @@ router.post(
         variants,
         stocks,
         comboProduct,
-        subHeading,
+        subHeading,gst
       } = req.body;
       const parsedProduct = {
         name,
@@ -189,7 +189,7 @@ router.post(
         isBestSeller: isBestSeller === "true",
         images: uploadedImages,
         labReport: labReportUrls,
-        subHeading,
+        subHeading,gst,
         comboProduct: JSON.parse(comboProduct),
         variants: JSON.parse(variants),
       };

@@ -13,6 +13,13 @@ import {
 import Razorpay from "razorpay";
 import { DateTime } from "luxon";
 import { config } from "dotenv";
+import nodemailer from "nodemailer";  
+import hbs from "nodemailer-express-handlebars";
+import path from "path"
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 config();
 const router = Router();
 const razorpay = new Razorpay({
@@ -20,6 +27,35 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZOR_KEY_SECRET,
 });
 
+// Nodemailer setup
+const transporter = nodemailer.createTransport({
+  service: "smtp.hostinger.com", // or your email service
+  port: 465,
+  secure: true,
+  secureConnection: false,
+  requireTLS: true,
+  tls: {
+    ciphers: "SSLv3",
+  },
+  debug: true,
+  connectionTimeout: 10000,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+});
+transporter.use(
+  "compile",
+  hbs({
+    viewEngine: {
+      extname: ".hbs",
+      partialsDir: path.resolve("./Mail/templates"),
+      defaultLayout: false,
+    },
+    viewPath: path.resolve("./Mail/templates"),
+    extName: ".hbs",
+  })
+);
 async function decrementVariantStock(items, session) {
   for (const item of items) {
     const { productId, variantId, quantity } = item;
@@ -77,6 +113,23 @@ router.post("/register", async (req, res) => {
     }
     const newUser = new Customer({ name, email, password, phone });
     const userObj = await newUser.save();
+     await transporter.sendMail({
+      from: `"Refreshing Roots" <${process.env.MAIL_USER}>`,
+      to: email,
+      subject: "Welcome To Refreshing Roots ",
+      template: "welcome",
+      context: {
+        welcome,
+        year: new Date().getFullYear(),
+      },
+      attachments: [
+        {
+          filename: "fullLogo.png",
+          path: path.join(__dirname, "../fullLogo.png"),
+          cid: "fullLogo",
+        },
+      ],
+    });
     // const token = await generateToken(newUser);
     return res.status(201).json({ message: "pre registration successful" });
   } catch (err) {
@@ -96,10 +149,51 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Incorrect Password" });
     }
     const token = await generateToken(user);
-    return res.status(200).json({ data: user, token: token });
+    return res.status(200).json({
+      data: user,
+      token: token
+    });
   } catch (err) {
     console.log(err.message);
     return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router.patch("/update/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = req.body;
+
+    const allowedFields = [
+      "phone",
+      "addresses",
+      "firstLogin",
+      "profileCompleted",
+      "loyaltyPoints",
+      "cart",
+      "wishlist",
+    ];
+
+    const sanitizedUpdate = {};
+    for (const key of Object.keys(updateFields)) {
+      if (allowedFields.includes(key)) {
+        sanitizedUpdate[key] = updateFields[key];
+      }
+    }
+
+    const updatedCustomer = await Customer.findByIdAndUpdate(
+      id,
+      { $set: sanitizedUpdate },
+      { new: true }
+    );
+
+    if (!updatedCustomer) {
+      return res.status(404).json({ message: "Customer not found",result:"failed" });
+    }
+
+    res.json({data:updatedCustomer,result:"success"});
+  } catch (err) {
+    console.error("Error updating customer:", err);
+    res.status(500).json({ message: "Internal server error",result:"failed" });
   }
 });
 router.get("/me", verifyToken, async (req, res) => {
@@ -148,52 +242,6 @@ router.patch("/update/cart", async (req, res) => {
     return res.status(400).json({ error: "Failed to update cart" });
   }
 });
-
-router.patch("/update/address", async (req, res) => {
-  const { id, address } = req.body;
-
-  try {
-    let updated;
-
-    // Step 1: If default is true, unset default from all other addresses
-    if (address.default === true) {
-      await Customer.updateOne(
-        { _id: id },
-        { $set: { "addresses.$[].default": false } }
-      );
-    }
-
-    // Step 2: Add or update address
-    if (!address._id) {
-      // No _id means it's a new address → ADD it
-      updated = await Customer.findByIdAndUpdate(
-        id,
-        { $push: { addresses: address } },
-        { new: true, runValidators: true }
-      );
-    } else {
-      // Update existing address using positional operator
-      updated = await Customer.findOneAndUpdate(
-        { _id: id, "addresses._id": address._id },
-        {
-          $set: {
-            "addresses.$": address, // Replace matched address entirely
-          },
-        },
-        { new: true, runValidators: true }
-      );
-    }
-
-    if (!updated)
-      return res.status(404).json({ error: "Could not update or add address" });
-
-    return res.status(200).json({ data: updated });
-  } catch (err) {
-    console.error(err.message);
-    return res.status(400).json({ error: "Failed to update address" });
-  }
-});
-
 
 router.post("/cart", async (req, res) => {
   try {
@@ -291,8 +339,79 @@ router.post("/cart", async (req, res) => {
   }
 });
 
-// router.post("/update-password",async(req,res)=>{})
+// In-memory OTP store (you can use Redis or DB for production)
+const otpStore = {};
 
+// 1. Request OTP
+router.post("/request-otp", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await Customer.findOne({ email });
+    if (!user)
+      return res
+        .status(404)
+        .json({ message: "User with this email not found." });
+
+    const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
+    user.resetOTP = { otp, expiresAt: Date.now() + 10 * 60 * 1000 }; // 10 minutes validity
+    await user.save();
+    // Send Email
+    await transporter.sendMail({
+      from: `"Refreshing Roots" <${process.env.MAIL_USER}>`,
+      to: email,
+      subject: "Your OTP for Password Reset",
+      template: "otp",
+      context: {
+        otp,
+        year: new Date().getFullYear(),
+      },
+      attachments: [
+        {
+          filename: "fullLogo.png",
+          path: path.join(__dirname, "../fullLogo.png"),
+          cid: "fullLogo",
+        },
+      ],
+    });
+
+    res.json({ message: "OTP sent to your email.",status:"success" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error.",status:"failed" });
+  }
+});
+
+// 2. Verify OTP and Reset Password
+router.post("/update-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  try {
+    const user = await Customer.findOne({ email });
+    if (!user)
+      return res
+        .status(404)
+        .json({ message: "User with this email not found." });
+    const record = user.resetOTP;
+
+    if (!record || record.otp != otp)
+      return res.status(400).json({ message: "Invalid or expired OTP." });
+
+    if (Date.now() > record.expiresAt)
+      return res.status(400).json({ message: "OTP has expired." });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
+    user.resetOTP = "";
+    await user.save();
+
+    res.json({ message: "Password updated successfully.",status:"success" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error.",status:"failed" });
+  }
+});
 // // user order routes
 router.post("/orders", async (req, res) => {
   const session = await mongoose.startSession();
@@ -392,6 +511,51 @@ router.get("/orders/:id", async (req, res) => {
     return res
       .status(500)
       .json({ error: "Failed to place order", details: error.message });
+  }
+});
+
+router.patch("/update/address", async (req, res) => {
+  const { id, address } = req.body;
+
+  try {
+    let updated;
+
+    // Step 1: If default is true, unset default from all other addresses
+    if (address.default === true) {
+      await Customer.updateOne(
+        { _id: id },
+        { $set: { "addresses.$[].default": false } }
+      );
+    }
+
+    // Step 2: Add or update address
+    if (!address._id) {
+      // No _id means it's a new address → ADD it
+      updated = await Customer.findByIdAndUpdate(
+        id,
+        { $push: { addresses: address } },
+        { new: true, runValidators: true }
+      );
+    } else {
+      // Update existing address using positional operator
+      updated = await Customer.findOneAndUpdate(
+        { _id: id, "addresses._id": address._id },
+        {
+          $set: {
+            "addresses.$": address, // Replace matched address entirely
+          },
+        },
+        { new: true, runValidators: true }
+      );
+    }
+
+    if (!updated)
+      return res.status(404).json({ error: "Could not update or add address" });
+
+    return res.status(200).json({ data: updated });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Failed to update address" });
   }
 });
 // router.get("/orders/:id",async(req,res)=>{}) //r

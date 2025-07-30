@@ -25,10 +25,7 @@ const BaseUserSchema = new Schema(
       enum: ["active", "inactive", "blocked"],
       default: "active",
     },
-    firstLogin: {
-      type: Boolean,
-      default: false,
-    },
+
   },
   { timestamps: true }
 );
@@ -78,9 +75,11 @@ const productSchema = new mongoose.Schema(
     // price: { type: Number, required: true },
     discount: { type: Number, default: 0 }, // percentage
     finalPrice: { type: Number },
+    gst: { type: Number },
     images: [{ type: String }],
     labReport: [{ type: String }],
     inStock: { type: Boolean, default: true },
+    resetOTP:{type:String},
     // stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
     stocks: [
@@ -197,7 +196,11 @@ const CustomerSchema = new Schema({
       quantity: { type: Number, default: 1 },
     },
   ],
-
+    firstLogin: {
+      type: Boolean,
+      default: true,
+    },
+    profileCompleted: { type: Boolean, default: false },
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 

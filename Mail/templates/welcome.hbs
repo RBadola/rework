@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Welcome to {{companyName}}</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+          Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 0;
+        color: #333;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 40px auto;
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+      }
+
+      .header {
+        text-align: center;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+      }
+
+      .header h1 {
+        color: #2e7d32;
+        margin: 0;
+      }
+
+      .content {
+        line-height: 1.6;
+      }
+
+      .button {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 12px 20px;
+        background-color: #2e7d32;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: bold;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 0.875rem;
+        color: #777;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Welcome to {{companyName}}</h1>
+      </div>
+      <div class="content">
+        <p>Hi {{userName}},</p>
+
+        <p>
+          Thank you for signing up! We're thrilled to have you on board. You're now part of a community that's working together to build something awesome.
+        </p>
+
+        <p>
+          To get started, click the button below:
+        </p>
+
+        <a href="{{dashboardLink}}" class="button">Go to Your Dashboard</a>
+
+        <p>
+          If you have any questions, feel free to reply to this email — we're here to help!
+        </p>
+
+        <p>
+          Cheers,<br />
+          The {{companyName}} Team
+        </p>
+      </div>
+
+      <div class="footer">
+        &copy; {{year}} {{companyName}}. All rights reserved.
+      </div>
+    </div>
+  </body>
+</html>

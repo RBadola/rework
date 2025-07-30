@@ -29,7 +29,7 @@ router.use("/admin", AdminRoutes);
 router.use("/user", UserRouter);
 router.get("/products", async (req, res) => {
   try {
-    const products = await Product.find({isActive:true});
+    const products = await Product.find();
     res.status(200).json({ data: products });
   } catch (err) {
     logger.error("PRODUCT: Error occurred", err);
@@ -95,13 +95,13 @@ router.post("/verify", async (req, res) => {
     ).session(session);
     // console.log(order);
     const shipment = {
-      name: "Binni Aswal",
+      name: user.name,
       add: `${order.shippingAddress?.addressLine1} ${order.shippingAddress?.addressLine2} ${order.shippingAddress?.landmark}`,
       pin: order.shippingAddress?.pincode,
       city: order.shippingAddress?.city,
       state: order.shippingAddress?.state,
       country: "India",
-      phone: user?.phone || "8527210242",
+      phone: user?.phone ,
       order: `${order._id}`,
       payment_mode: "Prepaid",
       products_desc: "Mixed items",
