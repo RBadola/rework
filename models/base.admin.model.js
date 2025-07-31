@@ -193,7 +193,10 @@ const CustomerSchema = new Schema({
       quantity: { type: Number, default: 1 },
     },
   ],
-    resetOTP: { type: String }, 
+  resetOTP: {
+    otp: { type: Number },
+    expiresAt: { type: Date },
+  },
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 
@@ -397,18 +400,14 @@ const reviewSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-reviewSchema.set(
-  "toJSON",
-  {
-    transform: (doc, ret) => {
-      ret.id = ret._id;
-      delete ret._id;
-      delete ret.__v;
-      return ret;
-    },
+reviewSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
   },
-  
-);
+});
 export const Review = models.Review || mongoose.model("Review", reviewSchema);
 
 const AboutSchema = new mongoose.Schema(
@@ -418,49 +417,44 @@ const AboutSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-AboutSchema.set(
-  "toJSON",
-  {
-    transform: (doc, ret) => {
-      ret.id = ret._id;
-      delete ret._id;
-      delete ret.__v;
-      return ret;
-    },
+AboutSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
   },
-  
-);
+});
 export const About = models.About || mongoose.model("About", AboutSchema);
-const NewLetterS = new mongoose.Schema({
-  email: { type: String, required: true },
-}, { timestamps: true });
-NewLetterS.set(
-  "toJSON",
+const NewLetterS = new mongoose.Schema(
   {
-    transform: (doc, ret) => {
-      ret.id = ret._id;
-      delete ret._id;
-      delete ret.__v;
-      return ret;
-    },
-  }
+    email: { type: String, required: true },
+  },
+  { timestamps: true }
 );
+NewLetterS.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});
 export const NewLetter =
   models.NewLetter || mongoose.model("NewLetter", NewLetterS);
-  const SaleOfferSc = new mongoose.Schema({
-  offer: { type: String, required: true },
-}, { timestamps: true });
-SaleOfferSc.set(
-  "toJSON",
+const SaleOfferSc = new mongoose.Schema(
   {
-    transform: (doc, ret) => {
-      ret.id = ret._id;
-      delete ret._id;
-      delete ret.__v;
-      return ret;
-    },
+    offer: { type: String, required: true },
   },
- 
+  { timestamps: true }
 );
+SaleOfferSc.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});
 export const SaleOffer =
   models.SaleOffer || mongoose.model("SaleOffer", SaleOfferSc);
