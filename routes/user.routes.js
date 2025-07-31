@@ -362,27 +362,18 @@ const otpStore = {};
 
 router.post("/request-otp", async (req, res) => {
   const { email } = req.body;
-  const session = await mongoose.startSession();
 
   try {
-    session.startTransaction();
-
-    const user = await Customer.findOne({ email }).session(session);
-    if (!user) {
-      await session.abortTransaction();
+    const user = await Customer.findOne({ email });
+    if (!user)
       return res
         .status(404)
         .json({ message: "User with this email not found." });
-    }
 
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    user.resetOTP = {
-      otp,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    };
-    await user.save({ session });
-
-    // Send OTP email
+    const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
+    user.resetOTP = { otp, expiresAt: Date.now() + 10 * 60 * 1000 }; // 10 minutes validity
+    await user.save();
+    // Send Email
     await transporter.sendMail({
       from: `"Refreshing Roots" <${process.env.MAIL_USER}>`,
       to: email,
@@ -401,16 +392,12 @@ router.post("/request-otp", async (req, res) => {
       ],
     });
 
-    await session.commitTransaction();
     res.json({ message: "OTP sent to your email.", status: "success" });
   } catch (err) {
-    await session.abortTransaction();
     console.error(err);
     res.status(500).json({ message: "Server error.", status: "failed" });
-  } finally {
-    session.endSession();
   }
-});
+}); 
 
 
 // 2. Verify OTP and Reset Password
