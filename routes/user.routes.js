@@ -26,24 +26,17 @@ const razorpay = new Razorpay({
   key_id: process.env.RAZOR_KEY_ID,
   key_secret: process.env.RAZOR_KEY_SECRET,
 });
-
-// Nodemailer setup
 const transporter = nodemailer.createTransport({
-  service: "smtp.hostinger.com", // or your email service
-  port: 465,
-  secure: true,
-  secureConnection: false,
+  host: "smtp.hostinger.com",
+  port: 587,
+  secure: false, // STARTTLS
   requireTLS: true,
-  tls: {
-    ciphers: "SSLv3",
-  },
-  debug: true,
-  connectionTimeout: 10000,
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
   },
 });
+
 transporter.use(
   "compile",
   hbs({

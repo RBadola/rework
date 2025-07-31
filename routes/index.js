@@ -178,22 +178,16 @@ router.post("/contact", async (req, res) => {
 
   try {
     // Create a transport
-    const transporter = nodemailer.createTransport({
-      service: "smtp.hostinger.com", // or your email service
-      port: 465,
-      secure: true,
-      secureConnection: false,
-      requireTLS: true,
-      tls: {
-        ciphers: "SSLv3",
-      },
-      debug: true,
-      connectionTimeout: 10000,
-      auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS,
-      },
-    });
+ const transporter = nodemailer.createTransport({
+  host: "smtp.hostinger.com",
+  port: 587,
+  secure: false, // STARTTLS
+  requireTLS: true,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+});
 
     // HTML template
     const mailTemplate = `
