@@ -6,6 +6,7 @@ import {
   Banner,
   Category,
   Customer,
+  NewLetter,
   Order,
   Product,
 } from "../models/base.admin.model.js";
@@ -29,7 +30,15 @@ router.use("/admin", AdminRoutes);
 router.use("/user", UserRouter);
 router.get("/products", async (req, res) => {
   try {
-    const products = await Product.find();
+    const { category, isActive } = req.query;
+
+    // Dynamically build the filter object
+    const filter = {};
+
+    if (category) filter.category = category;
+    if (isActive !== undefined) filter.isActive = isActive === "true"; // Convert to boolean
+
+    const products = await Product.find(filter);
     res.status(200).json({ data: products });
   } catch (err) {
     logger.error("PRODUCT: Error occurred", err);
@@ -68,7 +77,7 @@ router.post("/verify", async (req, res) => {
     razorpay_payment_id,
     razorpay_signature,
     orderId,
-    userId,
+    userId,payment_mode
   } = req.body;
 
   const secret = process.env.RAZOR_KEY_SECRET;
@@ -101,10 +110,9 @@ router.post("/verify", async (req, res) => {
       city: order.shippingAddress?.city,
       state: order.shippingAddress?.state,
       country: "India",
-      phone: user?.phone ,
+      phone: user?.phone,
       order: `${order._id}`,
-      payment_mode: "Prepaid",
-      products_desc: "Mixed items",
+      payment_mode: payment_mode,
       total_amount: order.finalAmount,
       shipment_width: "10",
       shipment_height: "10",
@@ -145,7 +153,7 @@ router.post("/verify", async (req, res) => {
 });
 router.get("/categories", async (req, res) => {
   try {
-    const categories = await Category.find({isActive:true});
+    const categories = await Category.find({ isActive: true });
     res.status(200).json({ data: categories });
   } catch (err) {
     console.error(err.message);
@@ -161,4 +169,69 @@ router.get("/about", async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error " });
   }
 });
+router.post("/contact", async (req, res) => {
+  const { firstName, lastName, email, phone, message } = req.body;
+
+  if (!firstName || !lastName || !email || !phone || !message) {
+    return res.status(400).json({ error: "All fields are required." });
+  }
+
+  try {
+    // Create a transport
+    const transporter = nodemailer.createTransport({
+      service: "smtp.hostinger.com", // or your email service
+      port: 465,
+      secure: true,
+      secureConnection: false,
+      requireTLS: true,
+      tls: {
+        ciphers: "SSLv3",
+      },
+      debug: true,
+      connectionTimeout: 10000,
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+
+    // HTML template
+    const mailTemplate = `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>New Contact Message</h2>
+        <p><strong>Name:</strong> ${firstName} ${lastName}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Phone:</strong> ${phone}</p>
+        <p><strong>Message:</strong></p>
+        <p style="background: #f9f9f9; padding: 10px; border-left: 4px solid #4CAF50;">${message}</p>
+      </div>
+    `;
+
+    // Send email
+    await transporter.sendMail({
+      from: `"Refreshing Roots" <${process.env.MAIL_USER}>`,
+      to: email, // your receiving email
+      subject: "Thank you for reaching out to Refreshing Roots.",
+      html: mailTemplate,
+    });
+
+    return res.status(200).json({ message: "Message sent successfully!" });
+  } catch (err) {
+    console.error("Mail error:", err);
+    return res.status(500).json({ error: "Failed to send message." });
+  }
+});
+router.post("/newsletter",async(req,res)=>{
+  const email = req.body.email
+  try{
+    if(!email){
+      return res.status(400).json({ error: "Email is required." });
+    }
+    await NewLetter.create(email)
+    res.status(200).json({status:"success",message:"subscribed to newsletter"})
+  }catch (err) {
+    console.error("Mail error:", err);
+    return res.status(500).json({ error: "Failed to send message." });
+  }
+})
 export default router;

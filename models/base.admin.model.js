@@ -25,7 +25,6 @@ const BaseUserSchema = new Schema(
       enum: ["active", "inactive", "blocked"],
       default: "active",
     },
-
   },
   { timestamps: true }
 );
@@ -79,7 +78,7 @@ const productSchema = new mongoose.Schema(
     images: [{ type: String }],
     labReport: [{ type: String }],
     inStock: { type: Boolean, default: true },
-    resetOTP:{type:String},
+    resetOTP: { type: String },
     // stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
     stocks: [
@@ -160,7 +159,6 @@ const address = new mongoose.Schema(
     state: {
       type: String,
       required: true,
-     
     },
     pincode: {
       type: String,
@@ -196,11 +194,7 @@ const CustomerSchema = new Schema({
       quantity: { type: Number, default: 1 },
     },
   ],
-    firstLogin: {
-      type: Boolean,
-      default: true,
-    },
-    profileCompleted: { type: Boolean, default: false },
+
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 
@@ -228,7 +222,7 @@ const orderSchema = new mongoose.Schema(
       ref: "Customer",
       required: true,
     },
-
+    paymentMethod: String,
     items: [orderItemSchema],
 
     shippingAddress: address,
@@ -354,15 +348,18 @@ categorySchema.set("toJSON", {
 
 export const Category = models?.Category || model("Category", categorySchema);
 
-const BannerSchema = new mongoose.Schema({
-  image: { type: String, required: true },
-  name: { type: String, required: true },
-  status: {
-    type: String,
-    enum: ["active", "inactive"],
-    default: "active",
+const BannerSchema = new mongoose.Schema(
+  {
+    deskimage: { type: String, required: true },
+    mobimage: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+    },
   },
-}, { timestamps: true });
+  { timestamps: true }
+);
 BannerSchema.set("toJSON", {
   transform: (doc, ret) => {
     ret.id = ret._id;
@@ -400,27 +397,54 @@ const reviewSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-reviewSchema.set("toJSON", {
-  transform: (doc, ret) => {
-    ret.id = ret._id;
-    delete ret._id;
-    delete ret.__v;
-    return ret;
+reviewSchema.set(
+  "toJSON",
+  {
+    transform: (doc, ret) => {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
+      return ret;
+    },
   },
-},{timestamps:true});
+  { timestamps: true }
+);
 export const Review = models.Review || mongoose.model("Review", reviewSchema);
 
-const AboutSchema = new mongoose.Schema({
-  name:String,
-  image:String,
-
-},{timestamps:true})
-AboutSchema.set("toJSON", {
-  transform: (doc, ret) => {
-    ret.id = ret._id;
-    delete ret._id;
-    delete ret.__v;
-    return ret;
+const AboutSchema = new mongoose.Schema(
+  {
+    name: String,
+    image: String,
   },
-},{timestamps:true});
-export const About = models.About  ||  mongoose.model("About",AboutSchema);
+  { timestamps: true }
+);
+AboutSchema.set(
+  "toJSON",
+  {
+    transform: (doc, ret) => {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
+      return ret;
+    },
+  },
+  { timestamps: true }
+);
+export const About = models.About || mongoose.model("About", AboutSchema);
+const NewLetterS = new mongoose.Schema({
+  email: { type: String, required: true },
+});
+NewLetterS.set(
+  "toJSON",
+  {
+    transform: (doc, ret) => {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
+      return ret;
+    },
+  },
+  { timestamps: true }
+);
+export const NewLetter =
+  models.NewLetter || mongoose.model("NewLetter", NewLetterS);

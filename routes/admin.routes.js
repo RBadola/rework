@@ -406,27 +406,46 @@ router.get("/banner", async (req, res) => {
 });
 router.post(
   "/banner",
-  upload.fields([{ name: "images" }]),
+  upload.fields([
+    { name: "deskimage", maxCount: 1 },
+    { name: "mobimage", maxCount: 1 },
+  ]),
   async (req, res) => {
     try {
-      const uploadedImages = [];
-      for (const file of req.files.images) {
-        console.log(file);
-        const imageUrl = await uploadImageToCloudinary(
-          file.buffer,
-          `products/banner`
-        );
-        uploadedImages.push({ image: imageUrl, name: file.originalname });
+      const deskImageFile = req.files?.deskimage?.[0];
+      const mobImageFile = req.files?.mobimage?.[0];
+
+      if (!deskImageFile || !mobImageFile) {
+        return res.status(400).json({ error: "Both images are required" });
       }
-      const banner = await Banner.insertMany(uploadedImages);
-      // const data = await banner.save()
-      return res.status(200).json({ data: banner });
+
+      const deskImageUrl = await uploadImageToCloudinary(
+        deskImageFile.buffer,
+        `banners/desktop`
+      );
+
+      const mobImageUrl = await uploadImageToCloudinary(
+        mobImageFile.buffer,
+        `banners/mobile`
+      );
+
+      const banner = new Banner({
+        deskimage: deskImageUrl,
+        mobimage: mobImageUrl,
+        name: deskImageFile.originalname || "New Banner",
+        status: "inactive",
+      });
+
+      const savedBanner = await banner.save();
+
+      return res.status(200).json({ data: savedBanner });
     } catch (err) {
-      console.error(err.message);
-      return res.status(400).json({ error: "Invalid Request" });
+      console.error("Banner upload error:", err.message);
+      return res.status(500).json({ error: "Failed to upload banner" });
     }
   }
 );
+
 // PATCH /banner/:id/status
 router.patch("/banner/:id/status", async (req, res) => {
   try {
@@ -574,3 +593,6 @@ router.post("/mock", verifyToken, isAdmin, createMockReview);
 // PUT /api/admin/reviews/mock/:id
 router.put("/mock/:id", verifyToken, isAdmin, updateMockReview);
 export default router;
+
+
+// Coupon model structure

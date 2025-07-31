@@ -13,10 +13,10 @@ import {
 import Razorpay from "razorpay";
 import { DateTime } from "luxon";
 import { config } from "dotenv";
-import nodemailer from "nodemailer";  
+import nodemailer from "nodemailer";
 import hbs from "nodemailer-express-handlebars";
-import path from "path"
-import { fileURLToPath } from 'url';
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,13 +113,14 @@ router.post("/register", async (req, res) => {
     }
     const newUser = new Customer({ name, email, password, phone });
     const userObj = await newUser.save();
-     await transporter.sendMail({
+    await transporter.sendMail({
       from: `"Refreshing Roots" <${process.env.MAIL_USER}>`,
       to: email,
       subject: "Welcome To Refreshing Roots ",
       template: "welcome",
       context: {
-        welcome,
+        companyName: "Refreshing Roots",
+        userName: name,
         year: new Date().getFullYear(),
       },
       attachments: [
@@ -151,51 +152,14 @@ router.post("/login", async (req, res) => {
     const token = await generateToken(user);
     return res.status(200).json({
       data: user,
-      token: token
+      token: token,
     });
   } catch (err) {
     console.log(err.message);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
-router.patch("/update/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateFields = req.body;
 
-    const allowedFields = [
-      "phone",
-      "addresses",
-      "firstLogin",
-      "profileCompleted",
-      "loyaltyPoints",
-      "cart",
-      "wishlist",
-    ];
-
-    const sanitizedUpdate = {};
-    for (const key of Object.keys(updateFields)) {
-      if (allowedFields.includes(key)) {
-        sanitizedUpdate[key] = updateFields[key];
-      }
-    }
-
-    const updatedCustomer = await Customer.findByIdAndUpdate(
-      id,
-      { $set: sanitizedUpdate },
-      { new: true }
-    );
-
-    if (!updatedCustomer) {
-      return res.status(404).json({ message: "Customer not found",result:"failed" });
-    }
-
-    res.json({data:updatedCustomer,result:"success"});
-  } catch (err) {
-    console.error("Error updating customer:", err);
-    res.status(500).json({ message: "Internal server error",result:"failed" });
-  }
-});
 router.get("/me", verifyToken, async (req, res) => {
   try {
     const user = await Customer.findOne({ _id: req.id });
@@ -232,14 +196,73 @@ router.patch("/update/cart", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    user.cart = newItems.items;
+    // Get existing cart items
+    let existingCart = user.cart || [];
 
+    // Process each new item
+    newItems.forEach((newItem) => {
+      // Find if item already exists in cart (match by product and variantId)
+      const existingItemIndex = existingCart.findIndex(
+        (existingItem) =>
+          existingItem.product.toString() === newItem.product.toString() &&
+          existingItem.variantId === newItem.variantId
+      );
+
+      if (existingItemIndex !== -1) {
+        // Item exists - replace it with new item
+        existingCart[existingItemIndex] = newItem;
+      } else {
+        // Item doesn't exist - add to cart
+        existingCart.push(newItem);
+      }
+    });
+
+    // Update user's cart
+    user.cart = existingCart;
     const updated = await user.save({ validateBeforeSave: true });
 
+    console.log("Cart updated successfully");
     return res.status(200).json({ data: updated.cart });
   } catch (err) {
     console.error(err.message);
     return res.status(400).json({ error: "Failed to update cart" });
+  }
+});
+
+router.patch("/update/wishlist", async (req, res) => {
+  const { id, item } = req.body; // `item` can be an object or just an ID, adjust accordingly
+
+  try {
+    const user = await Customer.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Initialize wishlist if not present
+    if (!Array.isArray(user.wishlist)) {
+      user.wishlist = [];
+    }
+
+    const itemIndex = user.wishlist.findIndex(
+      (w) => w.id?.toString?.() === item.id // assuming item has `id`
+    );
+
+    if (itemIndex >= 0) {
+      // Item exists, remove it
+      user.wishlist.splice(itemIndex, 1);
+    } else {
+      // Item doesn't exist, add it
+      user.wishlist.push(item);
+    }
+
+    const updated = await user.save({ validateBeforeSave: true });
+
+    console.log("Wishlist updated successfully");
+    return res.status(200).json({ data: updated.wishlist });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Failed to update wishlist" });
   }
 });
 
@@ -375,10 +398,10 @@ router.post("/request-otp", async (req, res) => {
       ],
     });
 
-    res.json({ message: "OTP sent to your email.",status:"success" });
+    res.json({ message: "OTP sent to your email.", status: "success" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error.",status:"failed" });
+    res.status(500).json({ message: "Server error.", status: "failed" });
   }
 });
 
@@ -406,10 +429,10 @@ router.post("/update-password", async (req, res) => {
     user.resetOTP = "";
     await user.save();
 
-    res.json({ message: "Password updated successfully.",status:"success" });
+    res.json({ message: "Password updated successfully.", status: "success" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error.",status:"failed" });
+    res.status(500).json({ message: "Server error.", status: "failed" });
   }
 });
 // // user order routes
@@ -426,7 +449,7 @@ router.post("/orders", async (req, res) => {
       discountAmount,
       finalAmount,
       couponCode,
-      paymentDetails,
+      paymentDetails,paymentMethod
     } = req.body;
 
     const user = await Customer.findById(userId).session(session);
@@ -449,7 +472,7 @@ router.post("/orders", async (req, res) => {
       paymentDetails,
       orderId: order_id.id,
       paymentStatus: "pending",
-      orderStatus: "pending",
+      orderStatus: "pending",paymentMethod
     });
     //  Call external API after transaction
     // const shipment = {
@@ -570,5 +593,46 @@ router.post("/review", verifyToken, createReview); // POST /api/reviews
 router.get("/:productId", getReviewsByProduct); // GET /api/reviews/:productId
 router.put("/:reviewId", verifyToken, updateReview); // PUT /api/reviews/:reviewId
 router.delete("/:reviewId", verifyToken, deleteReview); // DELETE /api/reviews/:reviewId
+router.patch("/update/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = req.body;
 
+    const allowedFields = [
+      "phone",
+      "addresses",
+      "firstLogin",
+      "profileCompleted",
+      "loyaltyPoints",
+      "cart",
+      "wishlist",
+    ];
+
+    const sanitizedUpdate = {};
+    for (const key of Object.keys(updateFields)) {
+      if (allowedFields.includes(key)) {
+        sanitizedUpdate[key] = updateFields[key];
+      }
+    }
+
+    const updatedCustomer = await Customer.findByIdAndUpdate(
+      id,
+      { $set: sanitizedUpdate },
+      { new: true }
+    );
+
+    if (!updatedCustomer) {
+      return res
+        .status(404)
+        .json({ message: "Customer not found", result: "failed" });
+    }
+
+    res.json({ data: updatedCustomer, result: "success" });
+  } catch (err) {
+    console.error("Error updating customer:", err);
+    res
+      .status(500)
+      .json({ message: "Internal server error", result: "failed" });
+  }
+});
 export default router;
