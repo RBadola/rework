@@ -9,6 +9,7 @@ import {
   Customer,
   Order,
   Product,
+  SaleOffer,
 } from "../models/base.admin.model.js";
 import {
   getAllReviews,
@@ -175,7 +176,8 @@ router.post(
         variants,
         stocks,
         comboProduct,
-        subHeading,gst
+        subHeading,
+        gst,
       } = req.body;
       const parsedProduct = {
         name,
@@ -189,7 +191,8 @@ router.post(
         isBestSeller: isBestSeller === "true",
         images: uploadedImages,
         labReport: labReportUrls,
-        subHeading,gst,
+        subHeading,
+        gst,
         comboProduct: JSON.parse(comboProduct),
         variants: JSON.parse(variants),
       };
@@ -521,20 +524,41 @@ router.delete("/about/:id", async (req, res) => {
     if (!banner) {
       return res.status(404).json({ error: "About not found" });
     }
-    console.log("To Be Deleted Banner:",banner);
+    console.log("To Be Deleted Banner:", banner);
 
     // Delete image from Cloudinary
     await deleteFromCloudinary(banner.image);
 
     // Remove from DB
     const deleted = await About.findByIdAndDelete(req.params.id);
-    console.log("Deleted Banner:", deleted,req.params.id);
+    console.log("Deleted Banner:", deleted, req.params.id);
     res.status(200).json({ message: "About deleted successfully" });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ error: "Failed to delete about" });
   }
 });
+
+router.post("/offer", async (req, res) => {
+  try {
+    const offer = req.body.offer;
+    const saleOffer = await SaleOffer.create(offer);
+    res.status(200).json({ data: saleOffer });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Invalid Request" });
+  }
+});
+router.get("/offer",async (req,res)=>{
+  try {
+    const offer = req.body.offer;
+    const saleOffer = await SaleOffer.find();
+    res.status(200).json({ data: saleOffer });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Invalid Request" });
+  }
+})
 // router.get("/coupon/:id", async (req, res) => {});
 // router.patch("/coupon/:id", async (req, res) => {});
 // router.delete("/coupon/:id", async (req, res) => {});
@@ -593,6 +617,5 @@ router.post("/mock", verifyToken, isAdmin, createMockReview);
 // PUT /api/admin/reviews/mock/:id
 router.put("/mock/:id", verifyToken, isAdmin, updateMockReview);
 export default router;
-
 
 // Coupon model structure

@@ -221,7 +221,11 @@ router.post("/newsletter",async(req,res)=>{
     if(!email){
       return res.status(400).json({ error: "Email is required." });
     }
-    await NewLetter.create(email)
+    const pre = await NewLetter.findOne({email:email})
+    if(pre){
+      return res.status(400).json({ error: "Email already subscribed." });
+    }
+    await NewLetter.create({email})
     res.status(200).json({status:"success",message:"subscribed to newsletter"})
   }catch (err) {
     console.error("Mail error:", err);

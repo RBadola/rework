@@ -78,7 +78,6 @@ const productSchema = new mongoose.Schema(
     images: [{ type: String }],
     labReport: [{ type: String }],
     inStock: { type: Boolean, default: true },
-    resetOTP: { type: String },
     // stockQuantity: { type: Number, default: 0 },
     tags: [{ type: String }], // for search
     stocks: [
@@ -194,7 +193,7 @@ const CustomerSchema = new Schema({
       quantity: { type: Number, default: 1 },
     },
   ],
-
+    resetOTP: { type: String }, 
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
 });
 
@@ -357,6 +356,7 @@ const BannerSchema = new mongoose.Schema(
       enum: ["active", "inactive"],
       default: "active",
     },
+    url: { type: String, required: true },
   },
   { timestamps: true }
 );
@@ -407,7 +407,7 @@ reviewSchema.set(
       return ret;
     },
   },
-  { timestamps: true }
+  
 );
 export const Review = models.Review || mongoose.model("Review", reviewSchema);
 
@@ -428,12 +428,12 @@ AboutSchema.set(
       return ret;
     },
   },
-  { timestamps: true }
+  
 );
 export const About = models.About || mongoose.model("About", AboutSchema);
 const NewLetterS = new mongoose.Schema({
   email: { type: String, required: true },
-});
+}, { timestamps: true });
 NewLetterS.set(
   "toJSON",
   {
@@ -443,8 +443,24 @@ NewLetterS.set(
       delete ret.__v;
       return ret;
     },
-  },
-  { timestamps: true }
+  }
 );
 export const NewLetter =
   models.NewLetter || mongoose.model("NewLetter", NewLetterS);
+  const SaleOfferSc = new mongoose.Schema({
+  offer: { type: String, required: true },
+}, { timestamps: true });
+SaleOfferSc.set(
+  "toJSON",
+  {
+    transform: (doc, ret) => {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
+      return ret;
+    },
+  },
+ 
+);
+export const SaleOffer =
+  models.SaleOffer || mongoose.model("SaleOffer", SaleOfferSc);

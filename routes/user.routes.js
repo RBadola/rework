@@ -125,10 +125,10 @@ router.post("/register", async (req, res) => {
       ],
     });
     // const token = await generateToken(newUser);
-    return res.status(201).json({ message: "pre registration successful" });
+    return res.status(201).json({ message: "pre registration successful",status:"success" });
   } catch (err) {
     console.log(err.message);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error",status:"failed" });
   }
 });
 router.post("/login", async (req, res) => {
@@ -359,20 +359,30 @@ router.post("/cart", async (req, res) => {
 const otpStore = {};
 
 // 1. Request OTP
+
 router.post("/request-otp", async (req, res) => {
   const { email } = req.body;
+  const session = await mongoose.startSession();
 
   try {
-    const user = await Customer.findOne({ email });
-    if (!user)
+    session.startTransaction();
+
+    const user = await Customer.findOne({ email }).session(session);
+    if (!user) {
+      await session.abortTransaction();
       return res
         .status(404)
         .json({ message: "User with this email not found." });
+    }
 
-    const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
-    user.resetOTP = { otp, expiresAt: Date.now() + 10 * 60 * 1000 }; // 10 minutes validity
-    await user.save();
-    // Send Email
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    user.resetOTP = {
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    };
+    await user.save({ session });
+
+    // Send OTP email
     await transporter.sendMail({
       from: `"Refreshing Roots" <${process.env.MAIL_USER}>`,
       to: email,
@@ -391,12 +401,17 @@ router.post("/request-otp", async (req, res) => {
       ],
     });
 
+    await session.commitTransaction();
     res.json({ message: "OTP sent to your email.", status: "success" });
   } catch (err) {
+    await session.abortTransaction();
     console.error(err);
     res.status(500).json({ message: "Server error.", status: "failed" });
+  } finally {
+    session.endSession();
   }
 });
+
 
 // 2. Verify OTP and Reset Password
 router.post("/update-password", async (req, res) => {
