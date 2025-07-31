@@ -118,8 +118,8 @@ router.post("/register", async (req, res) => {
       },
       attachments: [
         {
-          filename: "fullLogo.png",
-          path: path.join(__dirname, "../fullLogo.png"),
+          filename: "fullLogo.webp",
+          path: path.join(__dirname, "../fullLogo.webp"),
           cid: "fullLogo",
         },
       ],
@@ -384,8 +384,8 @@ router.post("/request-otp", async (req, res) => {
       },
       attachments: [
         {
-          filename: "fullLogo.png",
-          path: path.join(__dirname, "../fullLogo.png"),
+          filename: "fullLogo.webp",
+          path: path.join(__dirname, "../fullLogo.webp"),
           cid: "fullLogo",
         },
       ],
