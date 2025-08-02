@@ -107,6 +107,7 @@ const productSchema = new mongoose.Schema(
         type: Number,
       },
     },
+    video:{type:String},
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     isFeatured: { type: Boolean, default: false },

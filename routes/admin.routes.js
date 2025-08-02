@@ -42,22 +42,13 @@ cloudinary.config({
 });
 
 logger.log({ level: "info", message: __dirName });
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => cb(null, "uploads/"),
-//   filename: (req, file, cb) => {
-//     // const ext = path.extname(file.originalname);
-//     cb(
-//       null,
-//       `images-${Date.now()}-${Math.round(Math.random() * 1e9)}${
-//         file.originalname
-//       }`
-//     );
-//   },
-// });
 
-// const upload = multer({ storage: storage, limits: { fileSize: 5000000 } });
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 500MB
+  },
+  storage: multer.memoryStorage(), // or diskStorage
+});
 // admin account routes
 router.post("/create", async (req, res) => {
   try {
@@ -141,10 +132,14 @@ router.post("/confirmpass", verifyToken, async (req, res) => {
 });
 router.post(
   "/products/",
-  upload.fields([{ name: "images" }, { name: "labReport" }]),
+  upload.fields([{ name: "images" }, { name: "labReport" }, { name: "video" }]),
   async (req, res) => {
     try {
-      const { images = [], labReport = [] } = req.files;
+      const {
+        images = [],
+        labReport = [],
+        video: [],
+      } = req.files;
 
       // Upload all images to Cloudinary
       const uploadedImages = [];
@@ -156,7 +151,11 @@ router.post(
         );
         uploadedImages.push(imageUrl);
       }
+      let videoUrl = null;
 
+      if (video.length > 0) {
+        videoUrl = await uploadVideoToCloudinary(video[0].buffer);
+      }
       // console.log(images);
       // Upload PDF
       const labReportUrls = [];
@@ -195,7 +194,7 @@ router.post(
         subHeading,
         gst,
         comboProduct: JSON.parse(comboProduct),
-        variants: JSON.parse(variants),
+        variants: JSON.parse(variants),video: videoUrl,
       };
       //   parsedProduct["comboProduct"] = JSON.parse(comboProduct);
       //  if (variants && ) {
@@ -437,6 +436,7 @@ router.post(
         deskimage: deskImageUrl,
         mobimage: mobImageUrl,
         name: deskImageFile.originalname || "New Banner",
+        url: req.body.url,
         status: "inactive",
       });
 
@@ -550,7 +550,7 @@ router.post("/offer", async (req, res) => {
     return res.status(400).json({ error: "Invalid Request" });
   }
 });
-router.get("/offer",async (req,res)=>{
+router.get("/offer", async (req, res) => {
   try {
     const offer = req.body.offer;
     const saleOffer = await SaleOffer.find();
@@ -559,7 +559,7 @@ router.get("/offer",async (req,res)=>{
     console.error(err.message);
     return res.status(400).json({ error: "Invalid Request" });
   }
-})
+});
 router.post("/coupon", async (req, res) => {
   try {
     const coupon = await Coupon.create(req.body);

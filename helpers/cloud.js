@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+
 cloudinary.config({
   cloud_name: "djtvn83lp",
   api_key: "389158573923714",
@@ -7,16 +8,14 @@ cloudinary.config({
   secure: true,
 });
 
+// Upload PDF
 export const uploadPDF = async (localFilePath) => {
   try {
-   const fileBuffer = localFilePath.buffer; // file data in memory
-    const fileName = localFilePath.originalname;
-
-    // Upload to Cloudinary using upload_stream
+    const fileBuffer = localFilePath.buffer;
     const streamUpload = (buffer) => {
       return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { resource_type: "raw", folder: "pdfs" }, // use resource_type raw for PDFs
+          { resource_type: "raw", folder: "pdfs" },
           (error, result) => {
             if (result) resolve(result);
             else reject(error);
@@ -25,7 +24,6 @@ export const uploadPDF = async (localFilePath) => {
         stream.end(buffer);
       });
     };
-
     const result = await streamUpload(fileBuffer);
     return result.secure_url;
   } catch (error) {
@@ -33,6 +31,8 @@ export const uploadPDF = async (localFilePath) => {
     throw error;
   }
 };
+
+// Upload Image
 export const uploadImageToCloudinary = async (buffer, folder) => {
   if (!buffer) throw new Error("No image buffer provided");
 
@@ -41,8 +41,8 @@ export const uploadImageToCloudinary = async (buffer, folder) => {
       {
         folder,
         resource_type: "image",
-         transformation: [
-          { width: "auto",  crop: "fill" }, // or crop: "fill_pad"
+        transformation: [
+          { width: "auto", crop: "fill" },
           { fetch_format: "auto" },
           { quality: "auto" },
           { dpr: "auto" },
@@ -56,6 +56,32 @@ export const uploadImageToCloudinary = async (buffer, folder) => {
     stream.end(buffer);
   });
 };
+
+// Upload Video
+export const uploadVideoToCloudinary = async (buffer, folder = "videos") => {
+  if (!buffer) throw new Error("No video buffer provided");
+
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "video",
+        chunk_size: 6000000, // 6MB chunks
+        eager_async: true,
+        eager: [
+          { format: "mp4", transformation: [{ quality: "auto" }] },
+        ],
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(buffer);
+  });
+};
+
+// Delete from Cloudinary
 export const deleteFromCloudinary = async (imageUrl) => {
   try {
     const urlParts = imageUrl.split("/upload/");
@@ -64,10 +90,12 @@ export const deleteFromCloudinary = async (imageUrl) => {
       return;
     }
 
-    const fullPathWithExt = urlParts[1]; // e.g. "products/category/abc123.png"
-    const fullPublicId = fullPathWithExt.replace(/\.[^/.]+$/, ""); // remove extension
+    const fullPathWithExt = urlParts[1];
+    const fullPublicId = fullPathWithExt.replace(/\.[^/.]+$/, "");
 
-    await cloudinary.uploader.destroy(fullPublicId);
+    await cloudinary.uploader.destroy(fullPublicId, {
+      resource_type: "auto", // ensures video, image, pdf can all be deleted
+    });
   } catch (error) {
     console.error("Error deleting from Cloudinary:", error.message);
   }
