@@ -172,9 +172,9 @@ router.get("/me", verifyToken, async (req, res) => {
   }
 });
 // router.post("/logout",async(req,res)=>{})
-router.get("/cart", verifyToken, async (req, res) => {
+router.get("/cart/:id", verifyToken, async (req, res) => {
   try {
-    const user = await Customer.findOne({ _id: req.id });
+    const user = await Customer.findOne({ _id: req.params.id });
     if (!user) {
       return res.status(400).json({ error: "User Not Found" });
     }
