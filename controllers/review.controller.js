@@ -1,4 +1,4 @@
-import {Review} from "../models/base.admin.model.js";
+import { Customer, Product, Review } from "../models/base.admin.model.js";
 
 // Create a review
 export const createReview = async (req, res) => {
@@ -6,13 +6,21 @@ export const createReview = async (req, res) => {
     const { product, rating, comment } = req.body;
 
     const review = new Review({
-      user: req.user._id, // assumes user is added to req via auth middleware
+      user: req.id, // assumes user is added to req via auth middleware
       product,
       rating,
       comment,
     });
 
     await review.save();
+
+    // Add this review to the user's review list
+    await Customer.findByIdAndUpdate(
+      req.id,
+      { $push: { reviews: review._id } },
+      { new: true, useFindAndModify: false }
+    );
+
     res.status(201).json({ success: true, review });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -22,15 +30,26 @@ export const createReview = async (req, res) => {
 // Get all reviews for a product
 export const getReviewsByProduct = async (req, res) => {
   try {
-    const { productId } = req.params;
+    const productId = req.params.productId;
+    const product = await Product.findOne({ slug: productId });
 
-    const reviews = await Review.find({ product: productId }).populate("user", "name");
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
+
+    const reviews = await Review.find({ product: product._id }).populate({
+  path: "user",
+  select: "name email phone -_id"
+})
+
 
     res.json({ success: true, reviews });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 // Update a review
 export const updateReview = async (req, res) => {
@@ -72,6 +91,9 @@ export const deleteReview = async (req, res) => {
     }
 
     await review.remove();
+    await Customer.findByIdAndUpdate(req.user._id, {
+      $pull: { reviews: review._id },
+    });
 
     res.json({ success: true, message: "Review deleted" });
   } catch (err) {
@@ -85,7 +107,9 @@ export const getAllReviews = async (req, res) => {
       filter.product = req.query.product;
     }
 
-    const reviews = await Review.find(filter).populate("user", "name").populate("product", "name");
+    const reviews = await Review.find(filter)
+      .populate("user", "name")
+      .populate("product", "name");
     res.json({ success: true, count: reviews.length, reviews });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -126,7 +150,9 @@ export const createMockReview = async (req, res) => {
     const { user, product, rating, comment } = req.body;
 
     if (!user || !product || !rating) {
-      return res.status(400).json({ message: "user, product and rating are required" });
+      return res
+        .status(400)
+        .json({ message: "user, product and rating are required" });
     }
 
     const review = await Review.create({

@@ -198,6 +198,8 @@ const CustomerSchema = new Schema({
     expiresAt: { type: Date },
   },
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+  reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Review" }],
+
 });
 
 export const Customer = BaseUser.discriminator("Customer", CustomerSchema);
@@ -377,7 +379,7 @@ const reviewSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Customer",
       required: true,
     },
     product: {
