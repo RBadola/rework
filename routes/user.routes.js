@@ -213,8 +213,62 @@ const calculateTotal = (items) => {
 
   return Math.round(total);
 };
-// ✅ Updated all routes to check product-first, then variant if available
 
+// Update quantity of a cart item
+router.patch("/cart/update-quantity", async (req, res) => {
+  const { id, productId, variantId = null, quantity } = req.body;
+
+  try {
+    const user = await Customer.findById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    let updated = false;
+
+    user.cart = user.cart.map((item) => {
+      if (
+        item.product?.toString() === productId &&
+        (item.variantId || null)?.toString?.() === (variantId || null)?.toString?.()
+      ) {
+        updated = true;
+        return { ...item, quantity };
+      }
+      return item;
+    });
+
+    if (!updated) return res.status(404).json({ error: "Item not found" });
+
+    await user.save();
+    return res.json({ cart: user.cart });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update quantity" });
+  }
+});
+
+// Delete a cart item
+router.delete("/cart/:userId/item", async (req, res) => {
+  const { productId, variantId } = req.body;
+
+  try {
+    const user = await Customer.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.cart = user.cart.filter((item) => {
+      return !(
+        item.product?.toString() === productId &&
+        (item.variantId || null)?.toString?.() === (variantId || null)?.toString?.()
+      );
+    });
+
+    await user.save();
+    return res.json({ items: user.cart, total: calculateTotal(user.cart) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error removing cart item" });
+  }
+});
+
+// Merge or replace items in cart
 router.patch("/update/cart", async (req, res) => {
   const { id, cart: newItems } = req.body;
 
@@ -230,16 +284,16 @@ router.patch("/update/cart", async (req, res) => {
         comboB.some(
           (b) =>
             a.productId.toString() === b.productId.toString() &&
-            (a.variantId || null) === (b.variantId || null)
+            (a.variantId || null)?.toString?.() === (b.variantId || null)?.toString?.()
         )
       );
     };
 
     newItems.forEach((newItem) => {
-      const isCombo = !!newItem.comboProduct;
+      const isCombo = !!newItem.comboProduct?.products?.length;
 
       const existingIndex = existingCart.findIndex((existingItem) => {
-        const isExistingCombo = !!existingItem.comboProduct;
+        const isExistingCombo = !!existingItem.comboProduct?.products?.length;
 
         if (isCombo && isExistingCombo) {
           return areCombosEqual(
@@ -251,7 +305,7 @@ router.patch("/update/cart", async (req, res) => {
         if (!isCombo && !isExistingCombo) {
           return (
             existingItem.product?.toString() === newItem.product?.toString() &&
-            (existingItem.variantId || null) === (newItem.variantId || null)
+            (existingItem.variantId || null)?.toString?.() === (newItem.variantId || null)?.toString?.()
           );
         }
 
@@ -259,7 +313,6 @@ router.patch("/update/cart", async (req, res) => {
       });
 
       if (existingIndex !== -1) {
-        // 🟢 Increment quantity
         existingCart[existingIndex] = newItem;
       } else {
         existingCart.push(newItem);
@@ -273,60 +326,6 @@ router.patch("/update/cart", async (req, res) => {
   } catch (err) {
     console.error("Cart update error:", err.message);
     return res.status(400).json({ error: "Failed to update cart" });
-  }
-});
-
-router.patch("/cart/update-quantity", async (req, res) => {
-  const { id, productId, variantId = null, quantity } = req.body;
-
-  try {
-    const user = await Customer.findById(id);
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    let updated = false;
-
-    user.cart = user.cart.map((item) => {
-      if (!item.comboProduct) {
-        if (
-          item.product.toString() === productId &&
-          (item.variantId || null) === (variantId || null)
-        ) {
-          updated = true;
-          return { ...item, quantity };
-        }
-      }
-      return item;
-    });
-
-    if (!updated) return res.status(404).json({ error: "Item not found" });
-
-    await user.save();
-    return res.json({ cart: user.cart });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update quantity" });
-  }
-});
-
-router.delete("/cart/:userId/item", async (req, res) => {
-  const { productId, variantId } = req.body;
-
-  try {
-    const user = await Customer.findById(req.params.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    user.cart = user.cart.filter((item) => {
-      return !(
-        item.product.toString() === productId &&
-        (item.variantId || null) === (variantId || null)
-      );
-    });
-
-    await user.save();
-    return res.json({ items: user.cart, total: calculateTotal(user.cart) });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error removing cart item" });
   }
 });
 
@@ -345,79 +344,79 @@ router.post("/cart/details", async (req, res) => {
 
     const enrichedCart = await Promise.all(
       rawCart.map(async (item) => {
-        if (item.comboProduct) {
-          const comboItems = await Promise.all(
-            item.comboProduct.products.map(async (comboItem) => {
-              const product = await Product.findById(
-                comboItem.productId
-              ).lean();
-              if (!product) return null;
+        const product = await Product.findById(item.product).lean();
+        if (!product) return null;
 
-              const variant = product.variants?.find(
-                (v) => v._id?.toString() === comboItem.variantId
-              );
-
-              return {
-                id: product._id,
-                name: product.name,
-                image: product.images?.[0] || null,
-                variant: variant
-                  ? {
-                      id: variant._id,
-                      name: variant.variantName,
-                      weight: variant.variantWeight,
-                      price: variant.variantPrice,
-                      discount: variant.variantDiscount,
-                    }
-                  : null,
-              };
-            })
-          );
-
-          const subtotal = item.comboProduct.comboPrice * item.quantity;
-
-          return {
-            quantity: item.quantity,
-            product: {
-              isCombo: true,
-              comboDetails: comboItems.filter(Boolean),
-              comboPrice: item.comboProduct.comboPrice,
-            },
-            subtotal,
-          };
-        } else {
-          const product = await Product.findById(item.product).lean();
-          if (!product) return null;
-
-          const variant = product.variants?.find(
+        let variant = null;
+        if (item.variantId) {
+          variant = product.variants?.find(
             (v) => v._id?.toString() === item.variantId
           );
-
-          const subtotal = variant
-            ? (variant.variantPrice || 0) * item.quantity
-            : (product.finalPrice || 0) * item.quantity;
-
-          return {
-            quantity: item.quantity,
-            product: {
-              id: product._id,
-              name: product.name,
-              image: product.images?.[0] || null,
-              variant: variant
-                ? {
-                    id: variant._id,
-                    name: variant.variantName,
-                    weight: variant.variantWeight,
-                    price: variant.variantPrice,
-                    discount: variant.variantDiscount,
-                  }
-                : null,
-              finalPrice: product.finalPrice,
-              category: product.category,
-            },
-            subtotal,
-          };
         }
+
+        let subtotal = 0;
+        if (variant) {
+          subtotal = variant.variantPrice * item.quantity;
+        } else if (product.comboProduct?.comboPrice) {
+          subtotal = product.comboProduct.comboPrice * item.quantity;
+        } else {
+          return null; // skip if neither variant nor comboPrice is present
+        }
+
+        // If it's a combo product, prepare the breakdown as well
+        const comboDetails =
+          product.comboProduct?.products?.length > 0
+            ? await Promise.all(
+                product.comboProduct.products.map(async (comboItem) => {
+                  const subProduct = await Product.findById(comboItem.productId).lean();
+                  if (!subProduct) return null;
+
+                  const subVariant = comboItem.variantId
+                    ? subProduct.variants?.find(
+                        (v) => v._id?.toString() === comboItem.variantId
+                      )
+                    : null;
+
+                  return {
+                    id: subProduct._id,
+                    name: subProduct.name,
+                    image: subProduct.images?.[0] || null,
+                    variant: subVariant
+                      ? {
+                          id: subVariant._id,
+                          name: subVariant.variantName,
+                          weight: subVariant.variantWeight,
+                          price: subVariant.variantPrice,
+                          discount: subVariant.variantDiscount,
+                        }
+                      : null,
+                  };
+                })
+              )
+            : null;
+
+        return {
+          quantity: item.quantity,
+          product: {
+            id: product._id,
+            name: product.name,
+            image: product.images?.[0] || null,
+            category: product.category,
+            variant: variant
+              ? {
+                  id: variant._id,
+                  name: variant.variantName,
+                  weight: variant.variantWeight,
+                  price: variant.variantPrice,
+                  discount: variant.variantDiscount,
+                }
+              : null,
+            isCombo: !!comboDetails,
+            comboPrice: product.comboProduct?.comboPrice || null,
+            comboDetails: comboDetails?.filter(Boolean) || null,
+          },
+          subtotal,
+        };
       })
     );
 
@@ -430,6 +429,8 @@ router.post("/cart/details", async (req, res) => {
     return res.status(400).json({ error: "Failed to fetch cart details" });
   }
 });
+
+
 
 router.patch("/update/wishlist", async (req, res) => {
   const { id, item } = req.body; // `item` can be an object or just an ID, adjust accordingly

@@ -73,7 +73,6 @@ const productSchema = new mongoose.Schema(
     category: { type: String, required: true },
     // price: { type: Number, required: true },
     discount: { type: Number, default: 0 }, // percentage
-    finalPrice: { type: Number },
     gst: { type: Number },
     images: [{ type: String }],
     labReport: [{ type: String }],
@@ -138,6 +137,7 @@ productSchema.pre("save", async function (next) {
     if (this.isModified("name")) {
       this.slug = slugify(this.name, { lower: true, strict: true, trim: true });
     }
+
     next();
   } catch (err) {
     console.error("Error", err.message);
@@ -189,7 +189,7 @@ const CustomerSchema = new Schema({
         ref: "Product",
         required: true,
       },
-      variantId: { type: String, required: true },
+      variantId: { type: String },
       quantity: { type: Number, default: 1 },
     },
   ],
@@ -528,7 +528,7 @@ couponSchema.set("toJSON", {
 });
 
 // Optional: Add index for faster querying of active coupons
-couponSchema.index({ code: 1 });
+// couponSchema.index({ code: 1 });
 couponSchema.index({ isActive: 1, endDate: 1 });
 
 export const Coupon = mongoose.models.Coupon || mongoose.model("Coupon", couponSchema);
