@@ -694,10 +694,9 @@ router.patch("/update/address", async (req, res) => {
 // router.get("/wishlist/",async(req,res)=>{}) //r
 // router.delete("/wishlist/:id",async(req,res)=>{}) //d
 
-router.post("/review", verifyToken, createReview); // POST /api/reviews
-router.get("/:productId", getReviewsByProduct); // GET /api/reviews/:productId
-router.put("/:reviewId", verifyToken, updateReview); // PUT /api/reviews/:reviewId
-router.delete("/:reviewId", verifyToken, deleteReview); // DELETE /api/reviews/:reviewId
+router.post("/reviews", verifyToken, createReview); // POST /api/reviews
+router.put("/reviews/:reviewId", verifyToken, updateReview); // PUT /api/reviews/:reviewId
+router.delete("/reviews/:reviewId", verifyToken, deleteReview); // DELETE /api/reviews/:reviewId
 router.patch("/update/:id", async (req, res) => {
   try {
     const { id } = req.params;

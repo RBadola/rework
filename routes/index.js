@@ -20,6 +20,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { createDelhiveryOrder } from "../services/delhivery.js";
 import { DateTime } from "luxon";
+import { getReviewsByProduct } from "../controllers/review.controller.js";
 const router = Router();
 dotenv.config();
 const razorpay = new Razorpay({
@@ -232,4 +233,8 @@ router.post("/newsletter",async(req,res)=>{
     return res.status(500).json({ error: "Failed to send message." });
   }
 })
+
+router.get("/reviews/:productId", getReviewsByProduct); // GET /api/reviews/:productId
+
+
 export default router;
