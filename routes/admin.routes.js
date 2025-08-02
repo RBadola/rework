@@ -6,6 +6,7 @@ import {
   Banner,
   BaseUser,
   Category,
+  Coupon,
   Customer,
   Order,
   Product,
@@ -559,16 +560,119 @@ router.get("/offer",async (req,res)=>{
     return res.status(400).json({ error: "Invalid Request" });
   }
 })
-// router.get("/coupon/:id", async (req, res) => {});
-// router.patch("/coupon/:id", async (req, res) => {});
-// router.delete("/coupon/:id", async (req, res) => {});
+router.post("/coupon", async (req, res) => {
+  try {
+    const coupon = await Coupon.create(req.body);
+    return res.status(201).json({ data: coupon });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(400).json({ error: "Failed to create coupon" });
+  }
+});
+router.get("/coupons", async (req, res) => {
+  try {
+    const coupons = await Coupon.find();
+    return res.status(200).json({ data: coupons });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Failed to fetch coupons" });
+  }
+});
+router.patch("/coupon/:id", async (req, res) => {
+  try {
+    const updated = await Coupon.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updated) return res.status(404).json({ error: "Coupon not found" });
+    return res.status(200).json({ data: updated });
+  } catch (err) {
+    return res.status(400).json({ error: "Failed to update coupon" });
+  }
+});
+router.delete("/coupon/:id", async (req, res) => {
+  try {
+    const deleted = await Coupon.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Coupon not found" });
+    return res.status(200).json({ message: "Coupon deleted successfully" });
+  } catch (err) {
+    return res.status(400).json({ error: "Failed to delete coupon" });
+  }
+});
+router.get("/analytics/summary", async (req, res) => {
+  try {
+    const [totalUsers, totalOrders, totalProducts, totalRevenue] =
+      await Promise.all([
+        Customer.countDocuments(),
+        Order.countDocuments(),
+        Product.countDocuments(),
+        Order.aggregate([
+          { $match: { paymentStatus: "paid" } },
+          { $group: { _id: null, total: { $sum: "$finalAmount" } } },
+        ]),
+      ]);
 
-// admin coupon routes
-// router.post("/coupon/create", async (req, res) => {});
-// router.get("/coupon/", async (req, res) => {});
-// router.get("/coupon/:id", async (req, res) => {});
-// router.patch("/coupon/:id", async (req, res) => {});
-// router.delete("/coupon/:id", async (req, res) => {});
+    return res.status(200).json({
+      users: totalUsers,
+      orders: totalOrders,
+      products: totalProducts,
+      revenue: totalRevenue?.[0]?.total || 0,
+    });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Failed to fetch summary" });
+  }
+});
+router.get("/analytics/orders/daily", async (req, res) => {
+  try {
+    const data = await Order.aggregate([
+      {
+        $match: { paymentStatus: "paid" },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          totalOrders: { $sum: 1 },
+          totalRevenue: { $sum: "$finalAmount" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    return res.status(200).json({ data });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Failed to fetch daily analytics" });
+  }
+});
+router.get("/analytics/products/top", async (req, res) => {
+  try {
+    const topProducts = await Order.aggregate([
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.productId",
+          totalSold: { $sum: "$items.quantity" },
+        },
+      },
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+      { $sort: { totalSold: -1 } },
+      { $limit: 10 },
+    ]);
+    return res.status(200).json({ data: topProducts });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ error: "Failed to fetch top products" });
+  }
+});
 
 // //  admin disconts routes
 // router.post("/discount/create", async (req, res) => {});

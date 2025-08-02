@@ -458,3 +458,77 @@ SaleOfferSc.set("toJSON", {
 });
 export const SaleOffer =
   models.SaleOffer || mongoose.model("SaleOffer", SaleOfferSc);
+
+const couponSchema = new mongoose.Schema(
+  {
+    code: {
+      type: String,
+      required: true,
+      unique: true,
+      uppercase: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    discountType: {
+      type: String,
+      enum: ["flat", "percentage"],
+      required: true,
+    },
+    discountValue: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    maxDiscountAmount: {
+      type: Number,
+      default: null, // only for percentage type
+    },
+    minOrderValue: {
+      type: Number,
+      default: 0,
+    },
+    usageLimit: {
+      type: Number, // e.g., 100 uses in total
+      default: null,
+    },
+    usedCount: {
+      type: Number,
+      default: 0,
+    },
+    userUsageLimit: {
+      type: Number, // e.g., 1 per user
+      default: 1,
+    },
+    startDate: {
+      type: Date,
+      required: true,
+    },
+    endDate: {
+      type: Date,
+      required: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { timestamps: true }
+);
+
+couponSchema.set("toJSON", {
+  transform: (doc, ret) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+// Optional: Add index for faster querying of active coupons
+couponSchema.index({ code: 1 });
+couponSchema.index({ isActive: 1, endDate: 1 });
+
+export const Coupon = mongoose.models.Coupon || mongoose.model("Coupon", couponSchema);

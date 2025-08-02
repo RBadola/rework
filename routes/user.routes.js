@@ -17,6 +17,7 @@ import nodemailer from "nodemailer";
 import hbs from "nodemailer-express-handlebars";
 import path from "path";
 import { fileURLToPath } from "url";
+import bcrypt from "bcrypt";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,17 +119,21 @@ router.post("/register", async (req, res) => {
       },
       attachments: [
         {
-          filename: "fullLogo.webp",
-          path: path.join(__dirname, "../fullLogo.webp"),
+          filename: "fullLogo.jpg",
+          path: path.join(__dirname, "../fullLogo.jpg"),
           cid: "fullLogo",
         },
       ],
     });
     // const token = await generateToken(newUser);
-    return res.status(201).json({ message: "pre registration successful",status:"success" });
+    return res
+      .status(201)
+      .json({ message: "pre registration successful", status: "success" });
   } catch (err) {
     console.log(err.message);
-    return res.status(500).json({ error: "Internal Server Error",status:"failed" });
+    return res
+      .status(500)
+      .json({ error: "Internal Server Error", status: "failed" });
   }
 });
 router.post("/login", async (req, res) => {
@@ -179,46 +184,250 @@ router.get("/cart", verifyToken, async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
+const calculateTotal = (items) => {
+  let total = 0;
+
+  for (const item of items) {
+    const product = item.product;
+    const quantity = item.quantity;
+    if (!product || !quantity) continue;
+
+    if (item.variantId && product.variants?.length > 0) {
+      const variant = product.variants.find(
+        (v) => v._id?.toString() === item.variantId
+      );
+
+      if (variant) {
+        const price = variant.variantPrice || 0;
+        const discount = variant.variantDiscount || 0;
+        const discountedPrice = price - (price * discount) / 100;
+        total += discountedPrice * quantity;
+      }
+    } else {
+      const price = product.finalPrice || 0;
+      const discount = product.discount || 0;
+      const discountedPrice = price - (price * discount) / 100;
+      total += discountedPrice * quantity;
+    }
+  }
+
+  return Math.round(total);
+};
+// ✅ Updated all routes to check product-first, then variant if available
+
 router.patch("/update/cart", async (req, res) => {
   const { id, cart: newItems } = req.body;
 
   try {
     const user = await Customer.findById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Get existing cart items
     let existingCart = user.cart || [];
 
-    // Process each new item
-    newItems.forEach((newItem) => {
-      // Find if item already exists in cart (match by product and variantId)
-      const existingItemIndex = existingCart.findIndex(
-        (existingItem) =>
-          existingItem.product.toString() === newItem.product.toString() &&
-          existingItem.variantId === newItem.variantId
+    const areCombosEqual = (comboA, comboB) => {
+      if (comboA.length !== comboB.length) return false;
+      return comboA.every((a) =>
+        comboB.some(
+          (b) =>
+            a.productId.toString() === b.productId.toString() &&
+            (a.variantId || null) === (b.variantId || null)
+        )
       );
+    };
 
-      if (existingItemIndex !== -1) {
-        // Item exists - replace it with new item
-        existingCart[existingItemIndex] = newItem;
+    newItems.forEach((newItem) => {
+      const isCombo = !!newItem.comboProduct;
+
+      const existingIndex = existingCart.findIndex((existingItem) => {
+        const isExistingCombo = !!existingItem.comboProduct;
+
+        if (isCombo && isExistingCombo) {
+          return areCombosEqual(
+            newItem.comboProduct.products,
+            existingItem.comboProduct.products
+          );
+        }
+
+        if (!isCombo && !isExistingCombo) {
+          return (
+            existingItem.product?.toString() === newItem.product?.toString() &&
+            (existingItem.variantId || null) === (newItem.variantId || null)
+          );
+        }
+
+        return false;
+      });
+
+      if (existingIndex !== -1) {
+        // 🟢 Increment quantity
+        existingCart[existingIndex] = newItem;
       } else {
-        // Item doesn't exist - add to cart
         existingCart.push(newItem);
       }
     });
 
-    // Update user's cart
     user.cart = existingCart;
-    const updated = await user.save({ validateBeforeSave: true });
+    const updatedUser = await user.save({ validateBeforeSave: true });
 
-    console.log("Cart updated successfully");
-    return res.status(200).json({ data: updated.cart });
+    return res.status(200).json({ data: updatedUser.cart });
   } catch (err) {
-    console.error(err.message);
+    console.error("Cart update error:", err.message);
     return res.status(400).json({ error: "Failed to update cart" });
+  }
+});
+
+router.patch("/cart/update-quantity", async (req, res) => {
+  const { id, productId, variantId = null, quantity } = req.body;
+
+  try {
+    const user = await Customer.findById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    let updated = false;
+
+    user.cart = user.cart.map((item) => {
+      if (!item.comboProduct) {
+        if (
+          item.product.toString() === productId &&
+          (item.variantId || null) === (variantId || null)
+        ) {
+          updated = true;
+          return { ...item, quantity };
+        }
+      }
+      return item;
+    });
+
+    if (!updated) return res.status(404).json({ error: "Item not found" });
+
+    await user.save();
+    return res.json({ cart: user.cart });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update quantity" });
+  }
+});
+
+router.delete("/cart/:userId/item", async (req, res) => {
+  const { productId, variantId } = req.body;
+
+  try {
+    const user = await Customer.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.cart = user.cart.filter((item) => {
+      return !(
+        item.product.toString() === productId &&
+        (item.variantId || null) === (variantId || null)
+      );
+    });
+
+    await user.save();
+    return res.json({ items: user.cart, total: calculateTotal(user.cart) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error removing cart item" });
+  }
+});
+
+router.post("/cart/details", async (req, res) => {
+  const { id, cart = [] } = req.body;
+
+  try {
+    let rawCart = cart;
+
+    if (id) {
+      const user = await Customer.findById(id).lean();
+      if (user && user.cart?.length) {
+        rawCart = user.cart;
+      }
+    }
+
+    const enrichedCart = await Promise.all(
+      rawCart.map(async (item) => {
+        if (item.comboProduct) {
+          const comboItems = await Promise.all(
+            item.comboProduct.products.map(async (comboItem) => {
+              const product = await Product.findById(
+                comboItem.productId
+              ).lean();
+              if (!product) return null;
+
+              const variant = product.variants?.find(
+                (v) => v._id?.toString() === comboItem.variantId
+              );
+
+              return {
+                id: product._id,
+                name: product.name,
+                image: product.images?.[0] || null,
+                variant: variant
+                  ? {
+                      id: variant._id,
+                      name: variant.variantName,
+                      weight: variant.variantWeight,
+                      price: variant.variantPrice,
+                      discount: variant.variantDiscount,
+                    }
+                  : null,
+              };
+            })
+          );
+
+          const subtotal = item.comboProduct.comboPrice * item.quantity;
+
+          return {
+            quantity: item.quantity,
+            product: {
+              isCombo: true,
+              comboDetails: comboItems.filter(Boolean),
+              comboPrice: item.comboProduct.comboPrice,
+            },
+            subtotal,
+          };
+        } else {
+          const product = await Product.findById(item.product).lean();
+          if (!product) return null;
+
+          const variant = product.variants?.find(
+            (v) => v._id?.toString() === item.variantId
+          );
+
+          const subtotal = variant
+            ? (variant.variantPrice || 0) * item.quantity
+            : (product.finalPrice || 0) * item.quantity;
+
+          return {
+            quantity: item.quantity,
+            product: {
+              id: product._id,
+              name: product.name,
+              image: product.images?.[0] || null,
+              variant: variant
+                ? {
+                    id: variant._id,
+                    name: variant.variantName,
+                    weight: variant.variantWeight,
+                    price: variant.variantPrice,
+                    discount: variant.variantDiscount,
+                  }
+                : null,
+              finalPrice: product.finalPrice,
+              category: product.category,
+            },
+            subtotal,
+          };
+        }
+      })
+    );
+
+    const filtered = enrichedCart.filter(Boolean);
+    const total = filtered.reduce((sum, i) => sum + (i?.subtotal || 0), 0);
+
+    return res.status(200).json({ items: filtered, total });
+  } catch (err) {
+    console.error("Cart details error:", err.message);
+    return res.status(400).json({ error: "Failed to fetch cart details" });
   }
 });
 
@@ -259,107 +468,6 @@ router.patch("/update/wishlist", async (req, res) => {
   }
 });
 
-router.post("/cart", async (req, res) => {
-  try {
-    const cart = req.body.cart; // [{ product, variantId, quantity }]
-    console.log(cart);
-    if (!Array.isArray(cart) || cart.length === 0) {
-      return res.status(400).json({ error: "Cart is empty or invalid" });
-    }
-
-    const productIds = cart.map((item) => item.product);
-
-    // Fetch all products in one go
-    const products = await Product.find({ _id: { $in: productIds } });
-
-    let total = 0;
-    const cartDetails = [];
-
-    for (let cartItem of cart) {
-      const product = products.find(
-        (p) => p._id.toString() === cartItem.product.toString()
-      );
-
-      if (!product) continue;
-      if (product.variants) {
-        const variant = product.variants.find(
-          (v) => v._id.toString() === cartItem.variantId.toString()
-        );
-
-        if (!variant) continue;
-
-        // Calculate price after discount
-        const discountAmount =
-          variant.variantPrice * (variant.variantDiscount / 100);
-        const finalPrice =
-          Math.floor(variant.variantPrice - discountAmount) + 0.99;
-
-        const subtotal = finalPrice * cartItem.quantity;
-        total += subtotal;
-
-        cartDetails.push({
-          product: {
-            id: product._id,
-            name: product.name,
-            image: product.images[0],
-            variant: {
-              id: variant._id,
-              name: variant.variantName,
-              weight: variant.variantWeight,
-              price: variant.variantPrice,
-              discount: variant.variantDiscount,
-              finalPrice,
-            },
-          },
-          quantity: cartItem.quantity,
-          subtotal,
-          category: product.category,
-        });
-      } else {
-        const discountAmount =
-          product.comboProduct.comboPrice * (product.discount / 100);
-        const finalPrice =
-          Math.floor(product.comboProduct.comboPrice - discountAmount) + 0.99;
-
-        const subtotal = finalPrice * cartItem.quantity;
-        total += subtotal;
-
-        cartDetails.push({
-          product: {
-            id: product._id,
-            name: product.name,
-            image: product.images[0],
-            comboPrice: product.comboProduct.comboPrice,
-            discount: product.discount,
-            finalPrice,
-          },
-          quantity: cartItem.quantity,
-          subtotal,
-          category: product.category,
-        });
-      }
-    }
-    console.log({
-      items: cartDetails,
-      total,
-      finalTotal: total,
-    });
-    res.json({
-      items: cartDetails,
-      total,
-      finalTotal: total, // optionally add coupon handling here
-    });
-  } catch (err) {
-    console.error("Cart Error:", err.message);
-    return res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// In-memory OTP store (you can use Redis or DB for production)
-const otpStore = {};
-
-// 1. Request OTP
-
 router.post("/request-otp", async (req, res) => {
   const { email } = req.body;
 
@@ -385,8 +493,8 @@ router.post("/request-otp", async (req, res) => {
       },
       attachments: [
         {
-          filename: "fullLogo.webp",
-          path: path.join(__dirname, "../fullLogo.webp"),
+          filename: "fullLogo.jpg",
+          path: path.join(__dirname, "../fullLogo.jpg"),
           cid: "fullLogo",
         },
       ],
@@ -397,8 +505,7 @@ router.post("/request-otp", async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error.", status: "failed" });
   }
-}); 
-
+});
 
 // 2. Verify OTP and Reset Password
 router.post("/update-password", async (req, res) => {
@@ -444,7 +551,8 @@ router.post("/orders", async (req, res) => {
       discountAmount,
       finalAmount,
       couponCode,
-      paymentDetails,paymentMethod
+      paymentDetails,
+      paymentMethod,
     } = req.body;
 
     const user = await Customer.findById(userId).session(session);
@@ -467,7 +575,8 @@ router.post("/orders", async (req, res) => {
       paymentDetails,
       orderId: order_id.id,
       paymentStatus: "pending",
-      orderStatus: "pending",paymentMethod
+      orderStatus: "pending",
+      paymentMethod,
     });
     //  Call external API after transaction
     // const shipment = {
